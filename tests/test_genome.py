@@ -79,7 +79,7 @@ def test_rename_fasta_drops_contigs_and_descriptions():
 def test_rename_chain_changes_only_the_query():
     lines = ["chain 19 chr1 20 + 0 20 chr1 19 + 0 19 1\n", "15 1 0\n"]
     assert (
-        list(rename_chain(lines, "_hap2", set()))[0]
+        next(rename_chain(lines, "_hap2", set()))
         == "chain 19 chr1 20 + 0 20 chr1_hap2 19 + 0 19 1\n"
     )
 
