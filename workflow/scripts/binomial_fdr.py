@@ -21,6 +21,7 @@ from bisect import bisect_right
 import numpy as np
 
 from binomial import NORMAL_APPROXIMATION_MIN_TRIALS, binomial_pvalues
+from count_tables import observed_pvalues, read_count_table, two_largest
 
 GRID = (
     [e * 0.001 for e in range(10)]
@@ -60,48 +61,19 @@ def main(argv=None):
         Command-line arguments. Defaults to `sys.argv[1:]`.
     """
     args = build_parser().parse_args(argv)
-    with open(args.counts) as handle:
-        header = handle.readline().rstrip("\n").split("\t")
-        rows = [line.rstrip("\n").split("\t") for line in handle]
-    region = header[0] == "#region"
-    trials, pvalues = trial_counts(rows, region)
-    report, cutoff = fdr_report(trials, pvalues, args.simulations, args.fdr)
+    table = read_count_table(args.counts)
+    higher, lower = two_largest(table)
+    pvalues = observed_pvalues(table)
+    report, cutoff = fdr_report(higher + lower, pvalues, args.simulations, args.fdr)
     with open(args.report, "w") as out:
         out.write(f"# binomial_fdr.py {args.counts} {args.simulations} {args.fdr}\n")
         out.write("\n".join(report) + "\n")
-    columns = REGION_COLUMNS if region else SNV_COLUMNS
+    columns = REGION_COLUMNS if table.is_region else SNV_COLUMNS
     with open(args.output, "w") as out:
-        out.write("\t".join(header[i] for i in columns) + "\n")
-        for row, pvalue in zip(rows, pvalues):
+        out.write("\t".join(table.header[i] for i in columns) + "\n")
+        for row, pvalue in zip(table.rows, pvalues):
             if pvalue <= cutoff:
                 out.write("\t".join(row[i] for i in columns) + "\n")
-
-
-def trial_counts(rows, region):
-    """Return the reads per site and the observed p-values.
-
-    Parameters
-    ----------
-    rows : list of list of str
-        Testable rows in file order.
-    region : bool
-        True for region tables (hap1 and hap2 counts), False for SNV tables
-        (the two largest of ``cA`` to ``cT``).
-
-    Returns
-    -------
-    trials : numpy.ndarray of int
-        Reads per site.
-    pvalues : numpy.ndarray of float
-        Observed binomial p-values.
-    """
-    if region:
-        trials = [int(row[1]) + int(row[2]) for row in rows]
-        pvalues = [float(row[4]) for row in rows]
-    else:
-        trials = [sum(sorted(map(int, row[7:11]), reverse=True)[:2]) for row in rows]
-        pvalues = [float(row[14]) for row in rows]
-    return np.array(trials, dtype=np.int64), np.array(pvalues, dtype=np.float64)
 
 
 def upstream_random_state():
