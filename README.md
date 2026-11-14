@@ -1,145 +1,121 @@
-# snakemake-template
+# alleleseq-smk
 
-A skeleton Snakemake workflow with the layout and conventions pre-wired.
+AlleleSeq2 allele-specific expression (ASE) analysis as a Snakemake workflow, rewritten in Python 3.
 
 ## Description
 
-The rules are stubs (`cp`, `wc -l`, a script call). They only demonstrate the
-directive set. Replace their bodies with real work. The example wires
-`reference` + `prepare -> analyze -> summary` over a sample sheet. Two pixi
-workspaces split the launcher from the rule env, and profiles cover local and
-SLURM execution.
+The workflow builds a diploid personal genome for each individual, aligns RNA-seq reads to both haplotypes with STAR, and counts reads per allele at heterozygous SNVs.
+It then calls allele-specific SNVs and genes with the binomial and beta-binomial tests of AlleleSeq2 (Rozowsky et al. 2011, Chen et al. 2016).
+Every step of the upstream Makefiles, Python 2 scripts and AlleleDB R scripts is ported to Python.
+Only R's `dbinom`, `pbinom` and VGAM's `dbetabinom` are called, through rpy2.
+On the upstream run of IND1_RNA_rep1, the ported steps reproduce every count table, FDR cutoff and significant set (`pixi run golden`).
+
+### Pipeline
+
+1. Personal genome, once per individual (`results/refs/<individual>/<variant set>/`):
+   - Subset the VCF to one sample's PASS biallelic SNVs (and indels).
+   - Orient unphased hets with a seeded random draw.
+   - Build both haplotypes and their chains with `bcftools consensus`. This replaces vcf2diploid.
+   - Lift het SNVs and the GENCODE annotation onto each haplotype.
+   - Build a STAR index of both haplotypes plus the unplaced contigs.
+   - Compute each het's WGS read depth ratio in a 2 kb window.
+2. Per sample: align with STAR in two-pass mode, remove duplicates with Picard, split the reads over hets into unique and multi-mapping, and pile them up on each haplotype.
+3. Per unit (a sample, or a `group` of samples pooled):
+   - Count alleles, then drop SNVs with a WGS depth ratio outside [0.5, 1.5] or with phase warnings.
+   - Add weaker-allele multi-mapping reads to the weaker allele's count.
+   - Run the simulated binomial FDR and the AlleleDB beta-binomial FDR.
+4. Per unit, at the gene level: sum distinct reads per haplotype over each gene's hets, then run the same tests.
 
 ### Layout
 
 ```
-.tests/integration/      config + toy inputs for the end-to-end test
-config/
-  config.yaml.template   parameters + paths; copy to config.yaml (gitignored)
-  samples.example.tsv    one row per sample: sample_id, input, [label]
-workflow/
-  Snakefile              includes the rules + rule all
-  rules/
-    common.smk           config, sample sheet, path constants, helpers
-    preprocess.smk       shell-only prep (shared reference + per-sample)
-    analyze.smk          main per-sample compute (flag-driven script)
-    report.smk           run-level aggregation
-  scripts/               argparse scripts, each with build_parser() + main()
-  envs/pixi.toml         rule env (pixi workspace)
-profiles/
-  local/config.yaml      local execution
-  slurm/config.yaml      SLURM (per-rule resources, retried with more memory)
-pixi.toml                launcher env + test and lint tasks
-pyproject.toml           ruff + numpydoc config
+.tests/integration/      synthetic data with planted imbalance, made by .tests/make_toy_data.py
+config/                  config.yaml.template, individuals and samples examples
+workflow/rules/          common, genome, align, hetsnvs, regions, stats
+workflow/scripts/        one script per step, plus shared modules
+tests/                   unit tests; tests/golden/ replays the upstream run
+profiles/                local and SLURM execution
 ```
 
-### Idioms
+### Outputs
 
-- **Outputs grouped by `run_id`** under `results/<run_id>/<sample>/`. Logs and
-  benchmarks mirror it (`logs/<run_id>/`, `benchmarks/<run_id>/`). Override
-  `run_id` per run to keep runs separate. Run-independent artifacts go in
-  `results/refs/`.
-- **Sample sheet** is a TSV read once in `common.smk`. Optional columns are
-  looked up with `_column()` (empty cell -> `None`).
-- **Config -> flags**: rules stay declarative. Helpers like `analyze_flags()`
-  turn `config` into a script flag string.
-- **Every rule** carries `log:`, `benchmark:` and `software:`.
-- **Scripts** expose `build_parser()` so defaults are introspectable.
-- **Plots** use [poikilos](https://github.com/ramirc0/poikilos) with the
-  `plain` theme. Call `pk.use("plain")` before drawing, `pk.despine()` on every
-  axes and `pk.save_figure()` for the SVG + PNG pair. Rules declare both files.
+Per unit under `results/<run_id>/<unit>/`, `snvs/` and `genes/` each hold:
 
-### Conventions
+| File | Content |
+|---|---|
+| `<unit>.counts.raw.tsv` | allele counts before filtering (`raw_uniq` for genes) |
+| `<unit>.counts.filtered.tsv` | after the depth, phase-warning and multi-mapping filters |
+| `<unit>.counts.testable.tsv` | autosomes (plus `keep_chromosomes`) with enough reads |
+| `<unit>.binomial.{fdr.txt,significant.tsv}` | simulated binomial FDR report and calls |
+| `<unit>.betabinomial.{tsv,fdr.txt,significant.tsv}` | beta-binomial p-values, FDR report and calls |
+| `<unit>.overdispersion.{tsv,search.tsv,svg,png}` | fitted overdispersion and its search |
+| `<unit>.allelic_ratio.{raw,filtered,testable}.{svg,png}` | allele ratio histograms |
 
-Follow the [Nextstrain Snakemake style guide][style-guide] and
-[Snakemake's best-practices guide][best-practices]. The stubs already apply it:
-
-- No `run:` blocks. Custom logic lives in `workflow/scripts/` called from `shell:`.
-- Raw, triple-quoted `shell` blocks (`r"""`), one option per line.
-- Every interpolation quoted with `:q`. Multi-value params passed as lists.
-- Config mapped into `shell` via `params:` (a `lambda`), never interpolated directly.
-- `config[key]` for required keys, `config.get(key, default)` or `key in config`
-  for optional ones. Never bare `config.get(key)`.
-- `input:`/`output:` are literal path strings (no `rules.x.output` refs). All
-  paths are relative.
-- Logs tee'd to file and terminal (`exec &> >(tee {log:q})`). Run with
-  `--show-failed-logs` (set in the profiles).
-- Every rule has a `benchmark:`. No `message:` attribute.
-- Shell blocks end with `sync {output:q}`. On a shared filesystem, Snakemake's
-  first stat of an output from the submit host otherwise waits for the
-  writing node to flush it.
-- Scripts are called as `{workflow.basedir:q}/scripts/x.py` so the workflow
-  runs from any `--directory`.
-- Docstrings follow numpydoc. `pixi run lint` checks the scripts with ruff
-  (pydocstyle, numpy convention) and `numpydoc lint`. Neither tool parses
-  `.smk` files. Keep the rule helpers in the same style by hand.
-
-[style-guide]: https://docs.nextstrain.org/en/latest/reference/snakemake-style-guide.html
-[best-practices]: https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html
+Gene tables use `gene_id`. The `*.significant.named.tsv` copies add gene names and types.
 
 ## Getting Started
 
 ### Dependencies
 
-- Linux x86-64 (the only platform in both pixi workspaces).
-- [pixi](https://pixi.sh) on `PATH`.
-- Network access to GitHub. Snakemake, its pixi and SLURM plugins, and
-  poikilos install from git.
-- A SLURM cluster for `profiles/slurm`.
+- Linux x86-64 and [pixi](https://pixi.sh).
+- Network access to GitHub. Snakemake, its plugins and poikilos install from git.
+- Per individual:
+  - a VCF with the sample's genotypes (a joint VCF works)
+  - a WGS alignment (CRAM or BAM)
+- Per sample: RNA-seq FASTQs.
+- An indexed reference FASTA (`samtools faidx`) and its GENCODE GTF.
+- About 200 GB of RAM for each STAR index, and about 100 GB for each alignment.
 
 ### Installing
 
 ```bash
-git clone https://github.com/ramirc0/snakemake-template.git
-cd snakemake-template
-pixi install                                       # launcher env
-cp config/config.yaml.template config/config.yaml  # then edit
-cp config/samples.example.tsv config/samples.tsv   # then edit
+git clone <repo> alleleseq-smk && cd alleleseq-smk
+pixi install
+cp config/config.yaml.template config/config.yaml
+cp config/individuals.example.tsv config/individuals.tsv
+cp config/samples.example.tsv config/samples.tsv
 ```
 
-The launcher env (`pixi.toml` at the root) has Snakemake main, the pixi
-software-deployment plugin and the SLURM executor plugins. The rule env is a
-second pixi workspace, `workflow/envs/`. Its `pixi.lock` pins every package.
-An `onstart` hook installs it before the first job, because parallel SLURM jobs
-would otherwise race to install it.
+Edit the three files:
 
-To add a rule dependency, run `pixi add <pkg>` in `workflow/envs/`. After a
-hand edit, run `pixi lock` there (rules use `locked=True`).
+- `individuals.tsv` maps each individual to a VCF, the VCF sample column and a WGS alignment.
+- `samples.tsv` maps each RNA sample to an individual and its FASTQs. Leave `r2` empty for single-end data. Samples that share a `group` are also pooled.
 
 ### Executing program
 
 ```bash
-pixi shell                                  # enter the launcher env
-snakemake -n -p --profile profiles/local    # dry run
-snakemake --profile profiles/local          # local
-snakemake --profile profiles/slurm          # SLURM
-pixi run test                               # end-to-end test on toy data
-pixi run lint                               # ruff + numpydoc
+pixi run snakemake -n -p --profile profiles/local   # dry run
+pixi run snakemake --profile profiles/slurm         # SLURM
+pixi run unit                                       # unit tests
+pixi run test                                       # integration test on toy data
+ALLELESEQ_GOLDEN=<upstream run dir> pixi run golden # replay the upstream run
+pixi run lint
 ```
-
-After a first run, tune `set-resources` in the profiles from the
-`benchmarks/<run_id>/` TSVs.
 
 ## Help
 
-- Every rule reran. Any change to the rule env manifest or lock reruns every
-  rule. So does moving the workdir, because the env hash includes the
-  workspace's absolute path.
-- A job failed. The profiles set `--show-failed-logs`. The full log sits under
-  `logs/<run_id>/`.
-- A SLURM node keeps failing jobs. List it under `slurm-exclude-failed-nodes`
-  in `profiles/slurm/config.yaml`.
+- Gene-level calls need phased hets. Each individual's `phasing.tsv` reports the phased fraction. Unphased hets are oriented at random, so hap1 and hap2 sums across a gene mix both haplotypes. Phase the VCF first, for example with SHAPEIT5.
+- `variant_types: [snps]` writes only SNVs into the haplotypes. `[snps, indels]` also writes indels, which reduces mapping bias near them.
+- Changing `variant_types` builds a new personal genome under a new directory, so existing STAR indexes are kept.
+- The profiles ignore software-environment changes when deciding what to rerun, so an env edit does not rebuild every STAR index. After a tool upgrade, use `--forcerun <rule>`.
+- STAR refuses to start when its temp directory exists. The `align` rule removes it first.
 
-```bash
-snakemake --help
-```
+### Differences from upstream AlleleSeq2
+
+- A het SNV inside overlapping genes counts for each of them. Upstream kept only the last gene.
+- Pooled pileups sum `cN` across files. A het without a WGS window is dropped and logged instead of crashing.
+- The region tables keep their own names and correct column labels. Upstream overwrote the pooled SNV beta-binomial table.
+- AlleleDB's minimum depth follows `min_total`. The default of 6 leaves results unchanged.
 
 ## Authors
 
 Christian Ramirez ([@ramirc0](https://github.com/ramirc0))
 
+## Version History
+
+See the [commit history](https://github.com/ramirc0/alleleseq-smk/commits).
+
 ## Acknowledgments
 
-- [Nextstrain Snakemake style guide][style-guide]
-- [Snakemake best practices][best-practices]
-- [snakemake-software-deployment-plugin-pixi](https://github.com/cademirch/snakemake-software-deployment-plugin-pixi)
+- AlleleSeq2 (gersteinlab), AlleleSeq (Rozowsky et al. 2011, doi:10.1038/msb.2011.54) and AlleleDB (Chen et al. 2016, doi:10.1038/ncomms11101).
+- [snakemake-template](https://github.com/ramirc0/snakemake-template).
