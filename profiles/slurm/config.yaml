@@ -20,9 +20,10 @@ slurm-init-seconds-before-status-checks: 10
 # NODE_FAIL nodes join this list. An --exclude in slurm_extra would override it.
 # slurm-exclude-failed-nodes: node1,node2   # e.g. nodes missing a shared mount
 
+# zlurm has no accounts. Every partition defaults to 10 min, so rules set a runtime.
+# Listing partitions lets Slurm start a job wherever its runtime fits.
 default-resources:
-  slurm_account: youraccount
-  slurm_partition: 12hours
+  slurm_partition: "4hours,12hours,5days"
   runtime: 60m
   mem_mb: 4000
 
