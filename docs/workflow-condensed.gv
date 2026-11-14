@@ -1,0 +1,79 @@
+// alleleseq-smk stages, with related rules merged. workflow.gv has every rule.
+// Render: just -f ~/.claude/skills/graphviz-dot-theme/justfile render workflow-condensed.gv snakemake {TB,LR} {png,svg} files
+digraph workflow {
+  label = "alleleseq-smk"
+
+  subgraph cluster_inputs {
+    label = "Inputs"
+    vcf   [class = data, label = "variants.vcf.gz"]
+    wgs   [class = data, label = "WGS CRAM or BAM"]
+    ref   [class = data, label = "genome.fa, gencode.gtf"]
+    fastq [class = data, label = "RNA-seq FASTQs"]
+  }
+
+  subgraph cluster_genome {
+    label = "Personal genome"
+    haplotypes [class = step, label = "Haplotypes\nbcftools consensus"]
+    lift       [class = step, label = "Lift\nliftOver"]
+    index      [class = step, label = "Index\nSTAR"]
+    depth      [class = step, label = "Read depth\nbedtools"]
+    hap_files  [class = data, label = "hapN.fa, hapN.chain"]
+    lifted     [class = data, label = "hets.bed, diploid.gtf"]
+    star_idx   [class = data, label = "star_index/"]
+    rd         [class = data, label = "wgs_read_depth.tsv"]
+  }
+
+  subgraph cluster_align {
+    label = "Align"
+    align    [class = step, label = "Align\nSTAR, Picard"]
+    pileups  [class = step, label = "Pileups\nsamtools"]
+    bams     [class = data, label = "<sample>.hets.{uniq,mmap}.bam"]
+    mpileup  [class = data, label = "<sample>.hapN.{uniq,mmap}.mpileup"]
+  }
+
+  subgraph cluster_counts {
+    label = "Counts"
+    snv_counts  [class = step, label = "SNV counts\ncount, CNV, phase and multi-mapping filters"]
+    gene_counts [class = step, label = "Gene counts\nbedtools, multi-mapping filter"]
+    snv_table   [class = data, label = "snvs/counts.filtered.tsv"]
+    gene_table  [class = data, label = "genes/counts.filtered.tsv"]
+  }
+
+  subgraph cluster_stats {
+    label = "Statistics"
+    binomial     [class = step, label = "Binomial\nsimulated FDR"]
+    betabinomial [class = step, label = "Betabinomial\nAlleleDB overdispersion and FDR"]
+  }
+
+  binom_calls [class = result, label = "<unit>.binomial.significant.tsv"]
+  bb_calls    [class = result, label = "<unit>.betabinomial.significant.tsv"]
+
+  vcf -> haplotypes
+  ref -> haplotypes
+  haplotypes -> hap_files
+  hap_files -> lift -> lifted
+  ref -> lift
+  hap_files -> index -> star_idx
+  lifted -> depth
+  wgs -> depth -> rd
+
+  fastq -> align
+  star_idx -> align
+  lifted -> align
+  align -> bams -> pileups -> mpileup
+  hap_files -> pileups
+
+  mpileup -> snv_counts
+  rd -> snv_counts
+  snv_counts -> snv_table
+  snv_table -> gene_counts
+  bams -> gene_counts
+  gene_counts -> gene_table
+
+  snv_table -> binomial
+  gene_table -> binomial
+  snv_table -> betabinomial
+  gene_table -> betabinomial
+  binomial -> binom_calls
+  betabinomial -> bb_calls
+}

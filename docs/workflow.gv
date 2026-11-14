@@ -1,0 +1,174 @@
+// alleleseq-smk rule graph. Structure only; the style adds every visual.
+// Render: just -f ~/.claude/skills/graphviz-dot-theme/justfile render workflow.gv snakemake {TB,LR} {png,svg} files
+digraph workflow {
+  label = "alleleseq-smk"
+
+  subgraph cluster_inputs {
+    label = "Inputs"
+    genome_fa  [class = data, label = "genome.fa"]
+    gtf        [class = data, label = "gencode.gtf"]
+    vcf        [class = data, label = "variants.vcf.gz"]
+    wgs        [class = data, label = "WGS CRAM or BAM"]
+    fastq      [class = data, label = "RNA-seq FASTQs"]
+  }
+
+  subgraph cluster_genome {
+    label = "Personal genome"
+    primary_reference  [class = step, label = "Primary reference\nsamtools faidx"]
+    genes_bed          [class = step, label = "Genes BED\nPython"]
+    subset_vcf         [class = step, label = "Subset VCF\nbcftools"]
+    orient_hets        [class = step, label = "Orient hets\nPython"]
+    haplotype          [class = step, label = "Haplotype\nbcftools consensus"]
+    het_snvs           [class = step, label = "Het SNVs\nPython, liftOver"]
+    diploid_annotation [class = step, label = "Diploid annotation\nliftOver"]
+    star_index         [class = step, label = "STAR index\nSTAR"]
+    wgs_read_depth     [class = step, label = "WGS read depth\nbedtools"]
+    primary_fa   [class = data, label = "primary.fa"]
+    extra_fa     [class = data, label = "extra_contigs.fa"]
+    genes        [class = data, label = "genes.bed"]
+    gene_names   [class = data, label = "genes.tsv"]
+    sample_vcf   [class = data, label = "variants.vcf.gz"]
+    oriented     [class = data, label = "oriented.vcf.gz"]
+    hap_fa       [class = data, label = "hapN.fa"]
+    hap_chain    [class = data, label = "hapN.chain"]
+    hets_ref     [class = data, label = "hets.ref.bed"]
+    hets_hap     [class = data, label = "hets.hapN.bed"]
+    diploid_gtf  [class = data, label = "diploid.gtf"]
+    index        [class = data, label = "star_index/"]
+    depth        [class = data, label = "wgs_read_depth.tsv"]
+  }
+
+  subgraph cluster_align {
+    label = "Align"
+    fastqc            [class = step, label = "FastQC\nFastQC"]
+    align             [class = step, label = "Align\nSTAR two-pass"]
+    remove_duplicates [class = step, label = "Remove duplicates\nPicard"]
+    het_alignments    [class = step, label = "Het alignments\nsamtools"]
+    pileup            [class = step, label = "Pileup\nsamtools mpileup"]
+    star_bam   [class = data, label = "<sample>.Aligned.sortedByCoord.out.bam"]
+    dedup_bam  [class = data, label = "<sample>.dedup.bam"]
+    hets_bam   [class = data, label = "<sample>.hets.{uniq,mmap}.bam"]
+    mpileups   [class = data, label = "<sample>.hapN.{uniq,mmap}.mpileup"]
+  }
+
+  subgraph cluster_snvs {
+    label = "Het SNVs"
+    count_alleles [class = step, label = "Count alleles\nPython"]
+    filter_counts [class = step, label = "Filter counts\nPython"]
+    snv_raw      [class = data, label = "<unit>.counts.raw.tsv"]
+    snv_filtered [class = data, label = "snvs/counts.filtered.tsv"]
+  }
+
+  subgraph cluster_genes {
+    label = "Genes"
+    region_hets          [class = step, label = "Region hets\nPython"]
+    region_counts        [class = step, label = "Region counts\nbedtools"]
+    filter_region_counts [class = step, label = "Filter region counts\nPython"]
+    region_hets_bed [class = data, label = "<unit>.genes.hapN.bed"]
+    region_raw      [class = data, label = "<unit>.counts.raw_{uniq,mmap}.tsv"]
+    gene_filtered   [class = data, label = "genes/counts.filtered.tsv"]
+  }
+
+  subgraph cluster_stats {
+    label = "Statistics, per level"
+    select_testable    [class = step, label = "Select testable\nPython"]
+    binomial_fdr       [class = step, label = "Binomial FDR\nsimulation"]
+    overdispersion     [class = step, label = "Overdispersion\nAlleleDB, rpy2"]
+    betabinomial_fdr   [class = step, label = "Betabinomial FDR\nAlleleDB, VGAM"]
+    plot_allelic_ratio [class = step, label = "Plot allelic ratio\npoikilos"]
+    name_genes         [class = step, label = "Name genes\nPython"]
+    testable   [class = data, label = "<unit>.counts.testable.tsv"]
+    od         [class = data, label = "<unit>.overdispersion.tsv"]
+    binom_sig  [class = data, label = "<unit>.binomial.significant.tsv"]
+    bb_sig     [class = data, label = "<unit>.betabinomial.significant.tsv"]
+  }
+
+  phasing     [class = result, label = "phasing.tsv"]
+  qc          [class = result, label = "fastqc/"]
+  snv_calls   [class = result, label = "snvs/{binomial,betabinomial}.significant.tsv"]
+  gene_calls  [class = result, label = "<unit>.{binomial,betabinomial}.significant.named.tsv"]
+  ratio_plots [class = result, label = "<unit>.allelic_ratio.{raw,filtered,testable}.svg"]
+  od_plot     [class = result, label = "<unit>.overdispersion.svg"]
+
+  genome_fa -> primary_reference
+  primary_reference -> primary_fa
+  primary_reference -> extra_fa
+  gtf -> genes_bed
+  genes_bed -> genes
+  genes_bed -> gene_names
+  vcf -> subset_vcf -> sample_vcf -> orient_hets -> oriented
+  orient_hets -> phasing
+  primary_fa -> haplotype
+  oriented -> haplotype
+  haplotype -> hap_fa
+  haplotype -> hap_chain
+  oriented -> het_snvs
+  primary_fa -> het_snvs
+  hap_chain -> het_snvs
+  het_snvs -> hets_ref
+  het_snvs -> hets_hap
+  gtf -> diploid_annotation
+  hap_chain -> diploid_annotation -> diploid_gtf
+  hap_fa -> star_index
+  extra_fa -> star_index
+  star_index -> index
+  hets_ref -> wgs_read_depth
+  wgs -> wgs_read_depth
+  genome_fa -> wgs_read_depth
+  wgs_read_depth -> depth
+
+  fastq -> fastqc -> qc
+  fastq -> align
+  index -> align
+  diploid_gtf -> align
+  align -> star_bam -> remove_duplicates -> dedup_bam
+  dedup_bam -> het_alignments
+  hets_hap -> het_alignments
+  het_alignments -> hets_bam
+  hets_bam -> pileup
+  hap_fa -> pileup
+  hets_hap -> pileup
+  pileup -> mpileups
+
+  mpileups -> count_alleles
+  hets_ref -> count_alleles
+  hets_hap -> count_alleles
+  count_alleles -> snv_raw
+  snv_raw -> filter_counts
+  depth -> filter_counts
+  mpileups -> filter_counts
+  filter_counts -> snv_filtered
+
+  snv_filtered -> region_hets
+  genes -> region_hets
+  region_hets -> region_hets_bed
+  region_hets_bed -> region_counts
+  hets_bam -> region_counts
+  region_counts -> region_raw
+  region_raw -> filter_region_counts -> gene_filtered
+
+  snv_filtered -> select_testable
+  gene_filtered -> select_testable
+  genes -> select_testable
+  select_testable -> testable
+  testable -> binomial_fdr
+  testable -> overdispersion
+  testable -> betabinomial_fdr
+  overdispersion -> od
+  overdispersion -> od_plot
+  od -> betabinomial_fdr
+  binomial_fdr -> binom_sig
+  betabinomial_fdr -> bb_sig
+  binomial_fdr -> snv_calls
+  betabinomial_fdr -> snv_calls
+  binom_sig -> name_genes
+  bb_sig -> name_genes
+  gene_names -> name_genes
+  name_genes -> gene_calls
+  snv_raw -> plot_allelic_ratio
+  region_raw -> plot_allelic_ratio
+  snv_filtered -> plot_allelic_ratio
+  gene_filtered -> plot_allelic_ratio
+  testable -> plot_allelic_ratio
+  plot_allelic_ratio -> ratio_plots
+}

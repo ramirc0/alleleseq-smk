@@ -35,6 +35,7 @@ workflow/rules/          common, genome, align, hetsnvs, regions, stats
 workflow/scripts/        one script per step, plus shared modules
 tests/                   unit tests; tests/golden/ replays the upstream run
 profiles/                local and SLURM execution
+docs/                    workflow diagrams: workflow.gv (every rule), workflow-condensed.gv
 ```
 
 ### Outputs
