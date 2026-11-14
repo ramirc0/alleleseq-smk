@@ -7,7 +7,7 @@ runs ``bcftools consensus`` for both haplotypes and compares every contig.
 
 Usage (local only, inside the rule env)::
 
-    python tests/golden/haplotypes.py <golden dir> <scratch dir>
+    python tests/golden/haplotypes.py <run dir> <scratch dir> <vcf sample> <pgenome dir name>
 """
 
 import subprocess
@@ -43,7 +43,7 @@ def read_fasta(path):
         yield name, "".join(chunks)
 
 
-def golden_orientation(golden, sample):
+def golden_orientation(golden, sample, pgenome_dir):
     """Map each het to the allele vcf2diploid put on hap1.
 
     Parameters
@@ -52,13 +52,15 @@ def golden_orientation(golden, sample):
         Worked-example directory.
     sample : str
         VCF sample ID.
+    pgenome_dir : str
+        Name of the personal genome directory.
 
     Returns
     -------
     dict of tuple to str
         Hap1 base, upper case, keyed by (chromosome, 1-based position).
     """
-    pgenome = golden / "pgenome_IND1"
+    pgenome = golden / pgenome_dir
     wanted = {}
     with open(pgenome / f"{sample}_hetSNVs_hap1.bed") as bed:
         for line in bed:
@@ -106,7 +108,7 @@ def write_phased_vcf(vcf, out, hap1_base):
             target.write("\t".join(fields) + "\n")
 
 
-def main(golden, scratch, sample="IND1"):
+def main(golden, scratch, sample, pgenome_dir):
     """Run the check and report per-contig agreement.
 
     Parameters
@@ -117,6 +119,8 @@ def main(golden, scratch, sample="IND1"):
         Directory for intermediate files.
     sample : str
         VCF sample ID.
+    pgenome_dir : str
+        Name of the personal genome directory.
     """
     golden, scratch = Path(golden), Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
@@ -125,7 +129,7 @@ def main(golden, scratch, sample="IND1"):
     write_phased_vcf(
         golden / f"resources/{sample}.snvs.vcf",
         phased,
-        golden_orientation(golden, sample),
+        golden_orientation(golden, sample, pgenome_dir),
     )
     subprocess.run(
         ["bcftools", "view", "-Oz", "-o", f"{phased}.gz", str(phased)], check=True
@@ -156,9 +160,7 @@ def main(golden, scratch, sample="IND1"):
                 check=True,
             )
         ours = dict(read_fasta(rebuilt))
-        theirs = dict(
-            read_fasta(golden / f"pgenome_IND1/{sample}_hap{hap}.fa")
-        )
+        theirs = dict(read_fasta(golden / pgenome_dir / f"{sample}_hap{hap}.fa"))
         for contig, sequence in theirs.items():
             mine = ours[contig.rsplit("_", 1)[0]]
             status = "same" if mine == sequence else "DIFFERENT"

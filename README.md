@@ -8,7 +8,7 @@ The workflow builds a diploid personal genome for each individual, aligns RNA-se
 It then calls allele-specific SNVs and genes with the binomial and beta-binomial tests of AlleleSeq2 (Rozowsky et al. 2011, Chen et al. 2016).
 Every step of the upstream Makefiles, Python 2 scripts and AlleleDB R scripts is ported to Python.
 Only R's `dbinom`, `pbinom` and VGAM's `dbetabinom` are called, through rpy2.
-On the upstream run of IND1_RNA_rep1, the ported steps reproduce every count table, FDR cutoff and significant set (`pixi run golden`).
+On a full-size upstream AlleleSeq2 run, the ported steps reproduce every count table, FDR cutoff and significant set (`pixi run golden`).
 
 ### Pipeline
 
@@ -89,7 +89,7 @@ pixi run snakemake -n -p --profile profiles/local   # dry run
 pixi run snakemake --profile profiles/slurm         # SLURM
 pixi run unit                                       # unit tests
 pixi run test                                       # integration test on toy data
-ALLELESEQ_GOLDEN=<upstream run dir> pixi run golden # replay the upstream run
+pixi run golden --run <dir> --rna <PREFIX> --pool <PREFIX> --vcf-sample <id> --pgenome <dir>  # replay an upstream run
 pixi run lint
 ```
 

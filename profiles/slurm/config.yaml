@@ -33,7 +33,7 @@ set-threads:
   fastqc: 2
   wgs_read_depth: 4
 
-# From the IND1_RNA_rep1 run: STAR genomeGenerate took 2.5 h at 32 threads,
+# From a full-size human run: STAR genomeGenerate took 2.5 h at 32 threads,
 # STAR align peaked at 75.6 GB, and each multi-mapping mpileup took about 70 min.
 set-resources:              # tune from benchmarks/ TSVs after a real run
   star_index:
