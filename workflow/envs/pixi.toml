@@ -1,0 +1,44 @@
+[workspace]
+name = "alleleseq-smk-envs"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+exclude-newer = "7d"
+
+# Aligner and pileup versions match the AlleleSeq2 run used as the golden reference.
+[dependencies]
+python = "3.12.*"
+numpy = ">=2.2"
+scipy = ">=1.15"
+matplotlib = ">=3.10"
+rpy2 = ">=3.6"
+r-base = "4.5.*"
+r-vgam = "==1.1_14"
+star = "==2.7.11b"
+samtools = "==1.24"
+bedtools = "==2.31.1"
+picard = "==3.5.0"
+bcftools = ">=1.24"
+ucsc-liftover = "*"
+fastqc = ">=0.12"
+
+[pypi-dependencies]
+poikilos = { git = "https://github.com/ramirc0/poikilos", extras = ["labels"] }
+
+[feature.test.dependencies]
+pytest = ">=8"
+
+[environments]
+test = { features = ["test"] }
+
+# Rule jobs only save figures. Without this, a job that inherits DISPLAY picks a GUI backend.
+[activation.env]
+MPLBACKEND = "Agg"
+
+[exclude-newer]
+ca-certificates = "0d"
+certifi = "0d"
+pip = "0d"
+
+[pypi-exclude-newer]
+certifi = "0d"
+pip = "0d"
