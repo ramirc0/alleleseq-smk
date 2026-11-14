@@ -1,8 +1,11 @@
 """Normalize WGS read counts around het SNVs by their median.
 
-Port of AlleleSeq2's ``calculate_rd.py``. The input is ``bedtools intersect
--c`` output: each window followed by its read count. The median uses only
-windows with reads, as upstream did. Windows without reads get a ratio of 0.
+Port of AlleleSeq2's ``calculate_rd.py``. The input is upstream's ``bedtools
+intersect -a <reads> -b <windows> -sorted -wb -bed`` output: one line per
+read and window overlap, with the window name last. Streaming the reads keeps
+memory bounded by the windows, even over a pileup of millions of reads. The
+median uses only windows with reads, as upstream did. Windows without reads
+get a ratio of 0.
 """
 
 import argparse
@@ -19,12 +22,15 @@ def build_parser():
         Parser for the read_depth.py flags.
     """
     p = argparse.ArgumentParser(description="Read depth ratio per het SNV window.")
+    p.add_argument(
+        "--windows", required=True, help="Window BED with SNV names in column 4."
+    )
     p.add_argument("--output", required=True, help="Read depth table to write.")
     return p
 
 
 def main(argv=None):
-    """Read window counts from stdin and write the depth ratios.
+    """Count overlaps from stdin per window and write the depth ratios.
 
     Parameters
     ----------
@@ -32,10 +38,10 @@ def main(argv=None):
         Command-line arguments. Defaults to `sys.argv[1:]`.
     """
     args = build_parser().parse_args(argv)
-    counts = {}
+    with open(args.windows) as windows:
+        counts = {line.split("\t")[3].rstrip("\n"): 0 for line in windows}
     for line in sys.stdin:
-        fields = line.rstrip("\n").split("\t")
-        counts[fields[3]] = counts.get(fields[3], 0) + int(fields[4])
+        counts[line.rstrip("\n").rsplit("\t", 1)[1]] += 1
     median = statistics.median(c for c in counts.values() if c > 0)
     print(f"median rd:\t{median}", file=sys.stderr)
     with open(args.output, "w") as out:

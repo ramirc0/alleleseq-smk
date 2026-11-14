@@ -312,12 +312,15 @@ rule wgs_read_depth:
             --windows {output.windows:q} \
             --genome {output.genome:q}
         bedtools intersect \
-            -c \
-            -sorted \
-            -a {output.windows:q} \
-            -b <(samtools view --threads {threads} -u --reference {input.reference:q} {input.alignment:q}) \
+            -a <(samtools view --threads {threads} -u --reference {input.reference:q} {input.alignment:q}) \
+            -b {output.windows:q} \
             -g {output.genome:q} \
-        | python {workflow.basedir:q}/scripts/read_depth.py --output {output.depth:q}
+            -sorted \
+            -wb \
+            -bed \
+        | python {workflow.basedir:q}/scripts/read_depth.py \
+            --windows {output.windows:q} \
+            --output {output.depth:q}
 
         sync {output:q}
         """

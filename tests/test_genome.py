@@ -110,14 +110,18 @@ def test_wgs_windows_order_by_header_and_drop_negative_starts(write, tmp_path):
     assert genome.read_text() == "1\t9000\n2\t9000\n"
 
 
-def test_read_depth_median_ignores_empty_windows(tmp_path, monkeypatch):
-    counts = "".join(
-        f"chr1\t0\t1\tchr1_{p}_A_A_G\t{c}\n"
-        for p, c in [(10, 10), (20, 20), (30, 0), (40, 40)]
+def test_read_depth_counts_overlaps_per_window(tmp_path, monkeypatch):
+    names = [f"chr1_{p}_A_A_G" for p in (10, 20, 30, 40)]
+    windows = tmp_path / "w.bed"
+    windows.write_text("".join(f"chr1\t0\t1\t{n}\n" for n in names))
+    overlaps = "".join(
+        f"chr1\t5\t105\tread{i}\t255\t+\tchr1\t0\t1\t{n}\n"
+        for n, c in zip(names, (10, 20, 0, 40), strict=True)
+        for i in range(c)
     )
-    monkeypatch.setattr(sys, "stdin", io.StringIO(counts))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(overlaps))
     out = tmp_path / "rd.tsv"
-    read_depth_main(["--output", str(out)])
+    read_depth_main(["--windows", str(windows), "--output", str(out)])
     assert out.read_text().splitlines() == [
         "#chr\tpos\trd",
         "chr1\t10\t0.5",
