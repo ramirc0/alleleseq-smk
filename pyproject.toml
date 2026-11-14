@@ -1,4 +1,7 @@
 # Tool config only. The pixi workspaces live in the pixi.toml files.
+[tool.ruff]
+src = ["workflow/scripts"]
+
 [tool.ruff.lint]
 extend-select = ["D"]
 
