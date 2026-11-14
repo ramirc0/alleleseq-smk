@@ -48,7 +48,7 @@ def cells_match(ours, golden, rtol):
     bool
         True when the text matches or both parse to close floats.
     """
-    if ours == golden:
+    if ours.strip('"') == golden.strip('"'):
         return True
     if "__" in ours and "__" in golden:
         parts_a, parts_b = ours.split("__"), golden.split("__")
