@@ -65,3 +65,11 @@ def test_phasing_summary():
         .split("\t")
     )
     assert int(hets) > int(phased) > 0
+
+
+@pytest.mark.parametrize("sample", ["RNA1", "RNA2"])
+def test_star_temp_dir_sits_beside_its_outputs(sample):
+    # STAR execs its readFilesCommand script from the temp dir, and SLURM job
+    # /tmp is mounted noexec on zlurm.
+    log = (RESULTS / f"{sample}/{sample}.Log.out").read_text()
+    assert "--outTmpDir" not in log

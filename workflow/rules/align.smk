@@ -49,7 +49,6 @@ rule align:
             "PL:ILLUMINA",
         ],
         star=config["star"],
-        tmp=lambda w, resources: f"{resources.tmpdir}/star_{w.sample}",
     threads: 16
     log:
         f"{LOGDIR}/align/{{sample}}.txt",
@@ -62,14 +61,13 @@ rule align:
         exec &> >(tee {log:q})
 
         # A leftover STAR temp directory makes STAR refuse to start.
-        rm -rf {params.tmp:q}
+        rm -rf {params.prefix:q}_STARtmp
         STAR \
             --runThreadN {threads} \
             --genomeDir {input.index:q} \
             --twopassMode Basic \
             --readFilesIn {params.reads:q} \
             --outFileNamePrefix {params.prefix:q} \
-            --outTmpDir {params.tmp:q} \
             --outSAMattrRGline {params.read_group:q} \
             --outSAMattributes All \
             --outFilterMismatchNoverReadLmax {params.star[mismatch_n_over_read_lmax]} \
@@ -81,7 +79,7 @@ rule align:
             --limitSjdbInsertNsj {params.star[limit_sjdb_insert_nsj]} \
             --limitBAMsortRAM {params.star[limit_bam_sort_ram]} \
             --outSAMtype BAM SortedByCoordinate
-        rm -rf {params.prefix:q}_STARgenome {params.prefix:q}_STARpass1 {params.tmp:q}
+        rm -rf {params.prefix:q}_STARgenome {params.prefix:q}_STARpass1
         samtools index {output.bam:q}
         samtools flagstat {output.bam:q} > {output.flagstat:q}
 
