@@ -27,16 +27,47 @@ default-resources:
   mem_mb: 4000
 
 set-threads:
-  prepare: 1
-  analyze: 4
+  star_index: 32
+  align: 16
+  fastqc: 2
+  wgs_read_depth: 4
 
+# From the IND1_RNA_rep1 run: STAR genomeGenerate took 2.5 h at 32 threads,
+# STAR align peaked at 75.6 GB, and each multi-mapping mpileup took about 70 min.
 set-resources:              # tune from benchmarks/ TSVs after a real run
-  prepare:
-    mem_mb: 2000 * attempt
-    runtime: 30m
-  analyze:
-    mem_mb: 8000 * attempt
+  star_index:
+    mem_mb: 200000 * attempt
+    runtime: 720m
+  align:
+    mem_mb: 100000 * attempt
+    runtime: 720m
+  remove_duplicates:
+    mem_mb: 64000 * attempt
+    runtime: 240m
+  diploid_annotation:
+    mem_mb: 16000 * attempt
     runtime: 120m
+  wgs_read_depth:
+    mem_mb: 8000 * attempt
+    runtime: 240m
+  het_alignments:
+    runtime: 120m
+  pileup:
+    mem_mb: 8000 * attempt
+    runtime: 240m
+  count_alleles:
+    mem_mb: 16000 * attempt
+  filter_counts:
+    mem_mb: 16000 * attempt
+  region_counts:
+    mem_mb: 32000 * attempt
+    runtime: 120m
+  binomial_fdr:
+    mem_mb: 8000 * attempt
+  overdispersion:
+    mem_mb: 8000 * attempt
+  betabinomial_fdr:
+    mem_mb: 8000 * attempt
 
   # GPU rule pattern (uncomment + adapt for a CUDA rule):
   #  fit:

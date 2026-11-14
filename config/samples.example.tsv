@@ -1,4 +1,2 @@
-sample_id	input	label
-sample_a	resources/sample_a.tsv	control
-sample_b	resources/sample_b.tsv	treated
-sample_c	resources/sample_c.tsv
+sample_id	individual_id	r1	r2	group
+IND1_RNA_rep1	IND1	resources/IND1_RNA_rep1_R1.fastq.gz	resources/IND1_RNA_rep1_R2.fastq.gz	IND1_RNA

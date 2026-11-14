@@ -17,7 +17,7 @@ snakemake-executor-plugin-slurm = { git = "https://github.com/snakemake/snakemak
 snakemake-executor-plugin-slurm-jobstep = "==0.6.1"
 
 [tasks]
-test = "snakemake --snakefile workflow/Snakefile --directory .tests/integration --profile profiles/local --cores 2 --forceall"
+test = "snakemake --snakefile workflow/Snakefile --directory .tests/integration --profile profiles/local --cores 4 --forceall && pixi run --manifest-path workflow/envs/pixi.toml -e test pytest tests/test_integration.py"
 unit = "pixi run --manifest-path workflow/envs/pixi.toml -e test pytest tests"
 golden = "pixi run --manifest-path workflow/envs/pixi.toml -e test python tests/golden/replay.py"
 

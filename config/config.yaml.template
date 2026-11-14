@@ -1,14 +1,34 @@
+individuals: config/individuals.tsv
 samples: config/samples.tsv
 outdir: results
 pixi_env: default
 run_id: default          # outputs go under results/<run_id>/; override per run
 
-references:
-  reference: resources/reference.txt
+reference:
+  fasta: resources/GRCh38_no_alt_analysis_set_GCA_000001405.15.fasta   # needs a .fai
+  annotation: resources/gencode.v49.basic.annotation.gtf
 
-analyze:
-  window: 100
-  threshold: 0.5
-  metric: mean
-  normalize: true
-  random_state: null
+personal_genome:
+  variant_types: [snps, indels]   # [snps] reproduces the user's AlleleSeq2 run
+  orientation_seed: 0             # orientation of unphased hets
+
+star:
+  sa_index_nbases: 14
+  genome_generate_ram: 196000000000
+  sjdb_overhang: 100
+  limit_sjdb_insert_nsj: 2500000
+  limit_bam_sort_ram: 32000000000
+  mismatch_n_over_read_lmax: 0.03
+  match_n_min_over_lread: 0.95
+
+remove_duplicates: true
+fastqc: true
+
+counts:
+  min_total: 6
+  min_per_allele: 0
+  keep_chromosomes: []            # e.g. [X] for females
+
+stats:
+  fdr: 0.05
+  fdr_simulations: 500

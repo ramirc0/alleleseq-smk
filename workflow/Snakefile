@@ -1,11 +1,29 @@
-
 include: "rules/common.smk"
-include: "rules/preprocess.smk"
-include: "rules/analyze.smk"
-include: "rules/report.smk"
+include: "rules/genome.smk"
+include: "rules/align.smk"
+include: "rules/hetsnvs.smk"
+include: "rules/regions.smk"
+include: "rules/stats.smk"
 
 
 rule all:
     input:
-        f"{OUTDIR}/report/summary.svg",
-        [f"{prefix(s)}.curve.svg" for s in SAMPLES],
+        [f"{pgenome(i)}/phasing.tsv" for i in INDIVIDUALS],
+        [f"{OUTDIR}/{s}/fastqc" for s in SAMPLES] if config["fastqc"] else [],
+        expand(
+            f"{OUTDIR}/{{unit}}/{{level}}/{{unit}}.{{test}}.significant.tsv",
+            unit=UNITS,
+            level=["snvs", "genes"],
+            test=["binomial", "betabinomial"],
+        ),
+        expand(
+            f"{OUTDIR}/{{unit}}/genes/{{unit}}.{{test}}.significant.named.tsv",
+            unit=UNITS,
+            test=["binomial", "betabinomial"],
+        ),
+        expand(
+            f"{OUTDIR}/{{unit}}/{{level}}/{{unit}}.allelic_ratio.{{stage}}.svg",
+            unit=UNITS,
+            level=["snvs", "genes"],
+            stage=["raw", "filtered", "testable"],
+        ),

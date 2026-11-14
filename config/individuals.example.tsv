@@ -1,0 +1,2 @@
+individual_id	vcf	vcf_sample	wgs_alignment
+IND1	resources/cohort.vcf.gz	IND1	resources/IND1_align_GRCh38_v0.cram
