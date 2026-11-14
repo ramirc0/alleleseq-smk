@@ -66,7 +66,7 @@ def main(argv=None):
     pvalues = observed_pvalues(table)
     report, cutoff = fdr_report(higher + lower, pvalues, args.simulations, args.fdr)
     with open(args.report, "w") as out:
-        out.write(f"# binomial_fdr.py {args.counts} {args.simulations} {args.fdr}\n")
+        out.write(f"# binomial_fdr.py {args.simulations} simulations, FDR {args.fdr}\n")
         out.write("\n".join(report) + "\n")
     columns = REGION_COLUMNS if table.is_region else SNV_COLUMNS
     with open(args.output, "w") as out:
