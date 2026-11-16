@@ -21,8 +21,13 @@ test = "snakemake --snakefile workflow/Snakefile --directory .tests/integration 
 unit = "pixi run --manifest-path workflow/envs/pixi.toml -e test pytest .tests/unit"
 golden = "pixi run --manifest-path workflow/envs/pixi.toml -e test python .tests/golden/replay.py"
 
+# Targets must precede --config, so they ride in the second argument, not after `--`.
+[tasks.slurm]
+args = ["run_id", { arg = "snakemake_args", default = "" }]
+cmd = "snakemake {{ snakemake_args }} --profile profiles/slurm --slurm-jobname-prefix {{ run_id }} --config run_id={{ run_id }}"
+
 [feature.lint.dependencies]
-ruff = ">=0.16.9,<0.17"
+ruff = ">=0.17,<0.18"
 numpydoc = ">=1.11.0,<2"
 
 [feature.lint.tasks]

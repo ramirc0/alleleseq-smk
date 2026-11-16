@@ -95,7 +95,7 @@ Edit the three files:
 
 ```bash
 pixi run snakemake -n -p --profile profiles/local   # dry run
-pixi run snakemake --profile profiles/slurm         # SLURM
+pixi run slurm <run_id>                             # SLURM, sets run_id
 pixi run unit                                       # unit tests
 pixi run test                                       # integration test on toy data
 pixi run golden --run <dir> --rna <PREFIX> --pool <PREFIX> --vcf-sample <id> --pgenome <dir>  # replay an upstream run
