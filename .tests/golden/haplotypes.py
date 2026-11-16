@@ -7,7 +7,7 @@ runs ``bcftools consensus`` for both haplotypes and compares every contig.
 
 Usage (local only, inside the rule env)::
 
-    python tests/golden/haplotypes.py <run dir> <scratch dir> <vcf sample> <pgenome dir name>
+    python .tests/golden/haplotypes.py <run dir> <scratch dir> <vcf sample> <pgenome dir name>
 """
 
 import subprocess

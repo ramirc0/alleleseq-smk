@@ -5,6 +5,10 @@ src = ["workflow/scripts"]
 [tool.ruff.lint]
 extend-select = ["D"]
 
+# Test names say what they check.
+[tool.ruff.lint.per-file-ignores]
+".tests/**" = ["D"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
@@ -13,8 +17,5 @@ convention = "numpy"
 checks = ["all", "ES01", "EX01", "SA01"]
 
 [tool.pytest.ini_options]
+testpaths = [".tests/unit"]
 pythonpath = ["workflow/scripts"]
-testpaths = ["tests"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D"]

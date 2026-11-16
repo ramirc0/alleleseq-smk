@@ -29,11 +29,13 @@ On a full-size upstream AlleleSeq2 run, the ported steps reproduce every count t
 ### Layout
 
 ```
-.tests/integration/      synthetic data with planted imbalance, made by .tests/make_toy_data.py
+.tests/
+  unit/                  pytest tests of the scripts
+  integration/           synthetic data with planted imbalance, made by .tests/make_toy_data.py
+  golden/                replays an upstream AlleleSeq2 run
 config/                  config.yaml.template, individuals and samples examples
 workflow/rules/          common, genome, align, hetsnvs, regions, stats
 workflow/scripts/        one script per step, plus shared modules
-tests/                   unit tests; tests/golden/ replays the upstream run
 profiles/                local and SLURM execution
 docs/                    workflow diagrams: workflow.gv (every rule), workflow-condensed.gv
 ```
