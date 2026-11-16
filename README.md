@@ -10,7 +10,21 @@ Every step of the upstream Makefiles, Python 2 scripts and AlleleDB R scripts is
 Only R's `dbinom`, `pbinom` and VGAM's `dbetabinom` are called, through rpy2.
 On a full-size upstream AlleleSeq2 run, the ported steps reproduce every count table, FDR cutoff and significant set (`pixi run golden`).
 
-### Pipeline
+### Layout
+
+```
+.tests/
+  unit/                  pytest tests of the scripts
+  integration/           synthetic data with planted imbalance, made by .tests/make_toy_data.py
+  golden/                replays an upstream AlleleSeq2 run
+config/                  config.yaml.template, individuals and samples examples
+workflow/rules/          common, genome, align, hetsnvs, regions, stats
+workflow/scripts/        one script per step, plus shared modules
+profiles/                local and SLURM execution
+docs/                    workflow diagrams: workflow.gv (every rule), workflow-condensed.gv
+```
+
+### Steps
 
 1. Personal genome, once per individual (`results/refs/<individual>/<variant set>/`):
    - Subset the VCF to one sample's PASS biallelic SNVs (and indels).
@@ -25,20 +39,6 @@ On a full-size upstream AlleleSeq2 run, the ported steps reproduce every count t
    - Add weaker-allele multi-mapping reads to the weaker allele's count.
    - Run the simulated binomial FDR and the AlleleDB beta-binomial FDR.
 4. Per unit, at the gene level: sum distinct reads per haplotype over each gene's hets, then run the same tests.
-
-### Layout
-
-```
-.tests/
-  unit/                  pytest tests of the scripts
-  integration/           synthetic data with planted imbalance, made by .tests/make_toy_data.py
-  golden/                replays an upstream AlleleSeq2 run
-config/                  config.yaml.template, individuals and samples examples
-workflow/rules/          common, genome, align, hetsnvs, regions, stats
-workflow/scripts/        one script per step, plus shared modules
-profiles/                local and SLURM execution
-docs/                    workflow diagrams: workflow.gv (every rule), workflow-condensed.gv
-```
 
 ### Outputs
 
@@ -55,6 +55,13 @@ Per unit under `results/<run_id>/<unit>/`, `snvs/` and `genes/` each hold:
 | `<unit>.allelic_ratio.{raw,filtered,testable}.{svg,png}` | allele ratio histograms |
 
 Gene tables use `gene_id`. The `*.significant.named.tsv` copies add gene names and types.
+
+### Differences from upstream AlleleSeq2
+
+- A het SNV inside overlapping genes counts for each of them. Upstream kept only the last gene.
+- Pooled pileups sum `cN` across files. A het without a WGS window is dropped and logged instead of crashing.
+- The region tables keep their own names and correct column labels. Upstream overwrote the pooled SNV beta-binomial table.
+- AlleleDB's minimum depth follows `min_total`. The default of 6 leaves results unchanged.
 
 ## Getting Started
 
@@ -103,20 +110,9 @@ pixi run lint
 - The profiles ignore software-environment changes when deciding what to rerun, so an env edit does not rebuild every STAR index. After a tool upgrade, use `--forcerun <rule>`.
 - STAR refuses to start when its temp directory exists. The `align` rule removes it first.
 
-### Differences from upstream AlleleSeq2
-
-- A het SNV inside overlapping genes counts for each of them. Upstream kept only the last gene.
-- Pooled pileups sum `cN` across files. A het without a WGS window is dropped and logged instead of crashing.
-- The region tables keep their own names and correct column labels. Upstream overwrote the pooled SNV beta-binomial table.
-- AlleleDB's minimum depth follows `min_total`. The default of 6 leaves results unchanged.
-
 ## Authors
 
 Christian Ramirez ([@ramirc0](https://github.com/ramirc0))
-
-## Version History
-
-See the [commit history](https://github.com/ramirc0/alleleseq-smk/commits).
 
 ## Acknowledgments
 
