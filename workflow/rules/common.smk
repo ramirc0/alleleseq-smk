@@ -33,43 +33,45 @@ onstart:
     )
 
 
-def _read_sheet(path, required):
-    """Read a TSV sheet with every cell as a string.
+def _read_sheet(path, key, required):
+    """Read a TSV sheet with every cell as a string, keyed by its ID column.
 
     Parameters
     ----------
     path : str
         Sheet path.
+    key : str
+        ID column. Its values MUST be unique.
     required : list of str
-        Columns the sheet must have.
+        Columns the sheet must have besides `key`.
 
     Returns
     -------
-    list of dict
-        One dict per row. Empty cells are None.
+    dict of str to dict
+        One dict per row, keyed by its `key` value. Empty cells are None.
     """
     sheet = Path(path)
     if not sheet.exists():
         raise WorkflowError(f"Sheet not found: {sheet}. See config/*.example.tsv.")
     table = pl.read_csv(sheet, separator="\t", infer_schema_length=0, comment_prefix="#")
-    missing = [c for c in required if c not in table.columns]
+    missing = [c for c in [key, *required] if c not in table.columns]
     if missing:
         raise WorkflowError(f"{sheet} lacks columns: {', '.join(missing)}")
     if table.height == 0:
         raise WorkflowError(f"{sheet} has no rows.")
-    return [{k: (v or None) for k, v in row.items()} for row in table.iter_rows(named=True)]
+    repeated = table[key].filter(table[key].is_duplicated()).unique(maintain_order=True)
+    if repeated.len():
+        raise WorkflowError(f"{sheet} has duplicate {key}: {', '.join(repeated)}")
+    return {
+        row[key]: {k: (v or None) for k, v in row.items()}
+        for row in table.iter_rows(named=True)
+    }
 
 
-INDIVIDUALS = {
-    row["individual_id"]: row
-    for row in _read_sheet(
-        config["individuals"], ["individual_id", "vcf", "vcf_sample", "wgs_alignment"]
-    )
-}
-SAMPLES = {
-    row["sample_id"]: row
-    for row in _read_sheet(config["samples"], ["sample_id", "individual_id", "r1"])
-}
+INDIVIDUALS = _read_sheet(
+    config["individuals"], "individual_id", ["vcf", "vcf_sample", "wgs_alignment"]
+)
+SAMPLES = _read_sheet(config["samples"], "sample_id", ["individual_id", "r1"])
 GROUPS = {}
 for _sample, _row in SAMPLES.items():
     if _row["individual_id"] not in INDIVIDUALS:
