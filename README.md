@@ -114,6 +114,10 @@ pixi run lint
 
 Christian Ramirez ([@ramirc0](https://github.com/ramirc0))
 
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
 ## Acknowledgments
 
 - AlleleSeq2 (gersteinlab), AlleleSeq (Rozowsky et al. 2011, doi:10.1038/msb.2011.54) and AlleleDB (Chen et al. 2016, doi:10.1038/ncomms11101).
