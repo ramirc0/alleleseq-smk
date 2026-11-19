@@ -62,8 +62,8 @@ rule subset_vcf:
     input:
         vcf=lambda w: INDIVIDUALS[w.individual]["vcf"],
     output:
-        vcf=f"{REFDIR}/{{individual}}/{VARIANT_SET}/variants.vcf.gz",
-        index=f"{REFDIR}/{{individual}}/{VARIANT_SET}/variants.vcf.gz.tbi",
+        vcf=f"{REFDIR}/{{individual}}/variants.vcf.gz",
+        index=f"{REFDIR}/{{individual}}/variants.vcf.gz.tbi",
     params:
         sample=lambda w: INDIVIDUALS[w.individual]["vcf_sample"],
         types=",".join(VARIANT_TYPES),
@@ -98,15 +98,15 @@ rule subset_vcf:
 
 rule orient_hets:
     input:
-        vcf=f"{REFDIR}/{{individual}}/{VARIANT_SET}/variants.vcf.gz",
+        vcf=f"{REFDIR}/{{individual}}/variants.vcf.gz",
     output:
-        vcf=f"{REFDIR}/{{individual}}/{VARIANT_SET}/oriented.vcf.gz",
-        index=f"{REFDIR}/{{individual}}/{VARIANT_SET}/oriented.vcf.gz.csi",
-        orientations=f"{REFDIR}/{{individual}}/{VARIANT_SET}/orientations.tsv.gz",
-        summary=f"{REFDIR}/{{individual}}/{VARIANT_SET}/phasing.tsv",
+        vcf=f"{REFDIR}/{{individual}}/oriented.vcf.gz",
+        index=f"{REFDIR}/{{individual}}/oriented.vcf.gz.csi",
+        orientations=f"{REFDIR}/{{individual}}/orientations.tsv.gz",
+        summary=f"{REFDIR}/{{individual}}/phasing.tsv",
     params:
         seed=config["personal_genome"]["orientation_seed"],
-        plain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/oriented.vcf",
+        plain=f"{REFDIR}/{{individual}}/oriented.vcf",
     log:
         f"{LOGDIR}/orient_hets/{{individual}}.txt",
     benchmark:
@@ -135,18 +135,18 @@ rule orient_hets:
 rule haplotype:
     input:
         fasta=f"{REFDIR}/genome/primary.fa",
-        vcf=f"{REFDIR}/{{individual}}/{VARIANT_SET}/oriented.vcf.gz",
-        index=f"{REFDIR}/{{individual}}/{VARIANT_SET}/oriented.vcf.gz.csi",
+        vcf=f"{REFDIR}/{{individual}}/oriented.vcf.gz",
+        index=f"{REFDIR}/{{individual}}/oriented.vcf.gz.csi",
     output:
-        fasta=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap{{hap}}.fa",
-        fai=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap{{hap}}.fa.fai",
-        chain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap{{hap}}.chain",
+        fasta=f"{REFDIR}/{{individual}}/hap{{hap}}.fa",
+        fai=f"{REFDIR}/{{individual}}/hap{{hap}}.fa.fai",
+        chain=f"{REFDIR}/{{individual}}/hap{{hap}}.chain",
     params:
         sample=lambda w: INDIVIDUALS[w.individual]["vcf_sample"],
         # Mitochondria are inherited from the mother only, so hap1 (the
         # paternal slot in vcf2diploid) leaves chrM out.
         drop=lambda w: MITO_CONTIGS if w.hap == "1" else [],
-        raw_chain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap{{hap}}.raw.chain",
+        raw_chain=f"{REFDIR}/{{individual}}/hap{{hap}}.raw.chain",
     log:
         f"{LOGDIR}/haplotype/{{individual}}.hap{{hap}}.txt",
     benchmark:
@@ -182,16 +182,16 @@ rule haplotype:
 
 rule het_snvs:
     input:
-        vcf=f"{REFDIR}/{{individual}}/{VARIANT_SET}/oriented.vcf.gz",
+        vcf=f"{REFDIR}/{{individual}}/oriented.vcf.gz",
         fai=f"{REFDIR}/genome/primary.fa.fai",
-        hap1_chain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap1.chain",
-        hap2_chain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap2.chain",
+        hap1_chain=f"{REFDIR}/{{individual}}/hap1.chain",
+        hap2_chain=f"{REFDIR}/{{individual}}/hap2.chain",
     output:
-        ref=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hets.ref.bed",
-        hap1=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hets.hap1.bed",
-        hap2=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hets.hap2.bed",
-        hap1_unlifted=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hets.hap1.not_lifted.bed",
-        hap2_unlifted=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hets.hap2.not_lifted.bed",
+        ref=f"{REFDIR}/{{individual}}/hets.ref.bed",
+        hap1=f"{REFDIR}/{{individual}}/hets.hap1.bed",
+        hap2=f"{REFDIR}/{{individual}}/hets.hap2.bed",
+        hap1_unlifted=f"{REFDIR}/{{individual}}/hets.hap1.not_lifted.bed",
+        hap2_unlifted=f"{REFDIR}/{{individual}}/hets.hap2.not_lifted.bed",
     params:
         sample=lambda w: INDIVIDUALS[w.individual]["vcf_sample"],
     log:
@@ -219,14 +219,14 @@ rule het_snvs:
 rule diploid_annotation:
     input:
         gtf=ANNOTATION,
-        hap1_chain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap1.chain",
-        hap2_chain=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap2.chain",
+        hap1_chain=f"{REFDIR}/{{individual}}/hap1.chain",
+        hap2_chain=f"{REFDIR}/{{individual}}/hap2.chain",
     output:
-        gtf=f"{REFDIR}/{{individual}}/{VARIANT_SET}/diploid.gtf",
-        hap1_unlifted=f"{REFDIR}/{{individual}}/{VARIANT_SET}/annotation.hap1.not_lifted",
-        hap2_unlifted=f"{REFDIR}/{{individual}}/{VARIANT_SET}/annotation.hap2.not_lifted",
-        hap1=temp(f"{REFDIR}/{{individual}}/{VARIANT_SET}/annotation.hap1.gtf"),
-        hap2=temp(f"{REFDIR}/{{individual}}/{VARIANT_SET}/annotation.hap2.gtf"),
+        gtf=f"{REFDIR}/{{individual}}/diploid.gtf",
+        hap1_unlifted=f"{REFDIR}/{{individual}}/annotation.hap1.not_lifted",
+        hap2_unlifted=f"{REFDIR}/{{individual}}/annotation.hap2.not_lifted",
+        hap1=temp(f"{REFDIR}/{{individual}}/annotation.hap1.gtf"),
+        hap2=temp(f"{REFDIR}/{{individual}}/annotation.hap2.gtf"),
     log:
         f"{LOGDIR}/diploid_annotation/{{individual}}.txt",
     benchmark:
@@ -248,11 +248,11 @@ rule diploid_annotation:
 
 rule star_index:
     input:
-        hap1=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap1.fa",
-        hap2=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hap2.fa",
+        hap1=f"{REFDIR}/{{individual}}/hap1.fa",
+        hap2=f"{REFDIR}/{{individual}}/hap2.fa",
         extra=f"{REFDIR}/genome/extra_contigs.fa",
     output:
-        directory(f"{REFDIR}/{{individual}}/{VARIANT_SET}/star_index"),
+        directory(f"{REFDIR}/{{individual}}/star_index"),
     params:
         ram=config["star"]["genome_generate_ram"],
         sa_index_nbases=config["star"]["sa_index_nbases"],
@@ -286,14 +286,14 @@ rule star_index:
 
 rule wgs_read_depth:
     input:
-        hets=f"{REFDIR}/{{individual}}/{VARIANT_SET}/hets.ref.bed",
+        hets=f"{REFDIR}/{{individual}}/hets.ref.bed",
         alignment=lambda w: INDIVIDUALS[w.individual]["wgs_alignment"],
         reference=REFERENCE,
     output:
-        depth=f"{REFDIR}/{{individual}}/{VARIANT_SET}/wgs_read_depth.tsv",
-        windows=temp(f"{REFDIR}/{{individual}}/{VARIANT_SET}/wgs_windows.bed"),
-        genome=temp(f"{REFDIR}/{{individual}}/{VARIANT_SET}/wgs_genome.txt"),
-        header=temp(f"{REFDIR}/{{individual}}/{VARIANT_SET}/wgs_header.sam"),
+        depth=f"{REFDIR}/{{individual}}/wgs_read_depth.tsv",
+        windows=temp(f"{REFDIR}/{{individual}}/wgs_windows.bed"),
+        genome=temp(f"{REFDIR}/{{individual}}/wgs_genome.txt"),
+        header=temp(f"{REFDIR}/{{individual}}/wgs_header.sam"),
     threads: 4
     log:
         f"{LOGDIR}/wgs_read_depth/{{individual}}.txt",

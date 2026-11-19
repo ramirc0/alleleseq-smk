@@ -10,16 +10,14 @@ from snakemake.exceptions import WorkflowError
 configfile: "config/config.yaml"
 
 
-RESULTS = config["outdir"]
 RUN_ID = config.get("run_id", "default")
-OUTDIR = f"{RESULTS}/{RUN_ID}"  # per-run
-REFDIR = f"{RESULTS}/refs"  # run-independent
+OUTDIR = f"{config['outdir']}/{RUN_ID}"
+REFDIR = f"{OUTDIR}/refs"
 LOGDIR = f"logs/{RUN_ID}"
 BENCHDIR = f"benchmarks/{RUN_ID}"
 REFERENCE = config["reference"]["fasta"]
 ANNOTATION = config["reference"]["annotation"]
 VARIANT_TYPES = config["personal_genome"]["variant_types"]
-VARIANT_SET = "-".join(VARIANT_TYPES)
 
 # The workspace path is relative to the rule file. Every rule file sits in rules/.
 SOFTWARE_ENV = pixi(workspace="../envs", env=config["pixi_env"], locked=True)
@@ -156,9 +154,9 @@ def pgenome(individual):
     Returns
     -------
     str
-        ``results/refs/<individual>/<variant set>``.
+        ``results/<run_id>/refs/<individual>``.
     """
-    return f"{REFDIR}/{individual}/{VARIANT_SET}"
+    return f"{REFDIR}/{individual}"
 
 
 def sample_prefix(sample):

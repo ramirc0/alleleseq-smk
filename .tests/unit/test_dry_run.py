@@ -1,4 +1,4 @@
-"""Sheet validation in common.smk, checked by a dry run of the integration workflow.
+"""Checks on common.smk through dry runs of the integration workflow.
 
 Snakemake lives in the launcher env, not the test env, so the dry run goes
 through ``pixi run`` on the root manifest.
@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / ".tests/integration/config"
 
 
-def dry_run(**sheets):
-    overrides = [f"{key}={path}" for key, path in sheets.items()]
+def dry_run(*flags, **config):
+    overrides = [f"{key}={value}" for key, value in config.items()]
     return subprocess.run(
         [
             "pixi",
@@ -27,7 +27,7 @@ def dry_run(**sheets):
             "--directory",
             str(ROOT / ".tests/integration"),
             "--dry-run",
-            "--quiet",
+            *flags,
             "--config",
             *overrides,
         ],
@@ -45,7 +45,7 @@ def duplicated_first_row(sheet, tmp_path):
 
 
 def test_integration_sheets_pass():
-    result = dry_run()
+    result = dry_run("--quiet")
     assert result.returncode == 0, result.stderr
 
 
@@ -57,6 +57,13 @@ def test_integration_sheets_pass():
     ],
 )
 def test_duplicate_ids_are_rejected(key, sheet, column, tmp_path):
-    result = dry_run(**{key: duplicated_first_row(sheet, tmp_path)})
+    result = dry_run("--quiet", **{key: duplicated_first_row(sheet, tmp_path)})
     assert result.returncode != 0
     assert f"duplicate {column}" in result.stdout + result.stderr
+
+
+def test_personal_genomes_live_under_the_run():
+    result = dry_run("--forceall", run_id="layout")
+    assert result.returncode == 0, result.stderr
+    assert "results/layout/refs/IND1/star_index" in result.stdout
+    assert "results/refs/" not in result.stdout

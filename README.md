@@ -26,7 +26,7 @@ docs/                    workflow diagrams: workflow.gv (every rule), workflow-c
 
 ### Steps
 
-1. Personal genome, once per individual (`results/refs/<individual>/<variant set>/`):
+1. Personal genome, once per individual and run (`results/<run_id>/refs/<individual>/`):
    - Subset the VCF to one sample's PASS biallelic SNVs (and indels).
    - Orient unphased hets with a seeded random draw.
    - Build both haplotypes and their chains with `bcftools consensus`. This replaces vcf2diploid.
@@ -106,7 +106,7 @@ pixi run lint
 
 - Gene-level calls need phased hets. Each individual's `phasing.tsv` reports the phased fraction. Unphased hets are oriented at random, so hap1 and hap2 sums across a gene mix both haplotypes. Phase the VCF first, for example with SHAPEIT5.
 - `variant_types: [snps]` writes only SNVs into the haplotypes. `[snps, indels]` also writes indels, which reduces mapping bias near them.
-- Changing `variant_types` builds a new personal genome under a new directory, so existing STAR indexes are kept.
+- Personal genomes belong to their run. Use a new `run_id` for a new VCF or `variant_types`, so earlier runs keep their STAR indexes.
 - The profiles ignore software-environment changes when deciding what to rerun, so an env edit does not rebuild every STAR index. After a tool upgrade, use `--forcerun <rule>`.
 - STAR refuses to start when its temp directory exists. The `align` rule removes it first.
 
