@@ -28,7 +28,8 @@ docs/                    workflow diagrams: workflow.gv (every rule), workflow-c
 
 1. Personal genome, once per individual and run (`results/<run_id>/refs/<individual>/`):
    - Subset the VCF to one sample's PASS biallelic SNVs (and indels).
-   - Orient unphased hets with a seeded random draw.
+   - Take each het's phase from `phased_vcf` where it calls the same het with `PP` ≥ `min_phase_confidence` or no `PP`. Genotypes stay those of the VCF.
+   - Orient the remaining hets with a seeded random draw, one per `PS` phase set and one per unphased het.
    - Build both haplotypes and their chains with `bcftools consensus`. This replaces vcf2diploid.
    - Lift het SNVs and the GENCODE annotation onto each haplotype.
    - Build a STAR index of both haplotypes plus the unplaced contigs.
@@ -88,7 +89,7 @@ cp config/samples.example.tsv config/samples.tsv
 
 Edit the three files:
 
-- `individuals.tsv` maps each individual to a VCF, the VCF sample column and a WGS alignment.
+- `individuals.tsv` maps each individual to a VCF, the VCF sample column and a WGS alignment. An optional `phased_vcf` column names a statistically phased VCF, such as SHAPEIT5's, with the same sample name.
 - `samples.tsv` maps each RNA sample to an individual and its FASTQs. Leave `r2` empty for single-end data. Samples that share a `group` are also pooled.
 
 ### Executing program
@@ -104,7 +105,7 @@ pixi run lint
 
 ## Help
 
-- Gene-level calls need phased hets. Each individual's `phasing.tsv` reports the phased fraction. Unphased hets are oriented at random, so hap1 and hap2 sums across a gene mix both haplotypes. Phase the VCF first, for example with SHAPEIT5.
+- Gene-level calls need phased hets. Each individual's `phasing.tsv` reports the phased fraction. Unphased hets are oriented at random, so hap1 and hap2 sums across a gene mix both haplotypes. Phase the cohort first, for example with SHAPEIT5, and set `phased_vcf`.
 - `variant_types: [snps]` writes only SNVs into the haplotypes. `[snps, indels]` also writes indels, which reduces mapping bias near them.
 - Personal genomes belong to their run. Use a new `run_id` for a new VCF or `variant_types`, so earlier runs keep their STAR indexes.
 - The profiles ignore software-environment changes when deciding what to rerun, so an env edit does not rebuild every STAR index. After a tool upgrade, use `--forcerun <rule>`.

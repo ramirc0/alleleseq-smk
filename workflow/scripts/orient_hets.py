@@ -1,6 +1,10 @@
 """Phase every genotype so that ``bcftools consensus -H 1/-H 2`` can split them.
 
-Phased genotypes without a phase set (``PS``) keep their order. A phase set,
+Genotypes come from the callset. A het takes its phase from a statistically
+phased VCF, such as SHAPEIT5's, when that VCF calls the same het with a
+phasing confidence (``PP``) at or above the cutoff, or with none. Common
+variants carry no ``PP``. Other phased genotypes without a phase set
+(``PS``) keep their order. A phase set,
 such as GATK's physical phasing, only fixes phase within its block, so each
 block gets one random orientation. Each unphased het gets a random
 orientation from a seeded generator, as the AlleleSeq paper does for hets the
@@ -24,6 +28,13 @@ def build_parser():
     """
     p = argparse.ArgumentParser(description="Orient unphased hets at random.")
     p.add_argument("--vcf", required=True, help="Single-sample VCF, plain or gzipped.")
+    p.add_argument("--phased", help="Single-sample phased VCF of the sample's hets.")
+    p.add_argument(
+        "--min-phase-confidence",
+        type=float,
+        default=0.99,
+        help="Smallest PP at which a het from --phased is trusted.",
+    )
     p.add_argument("--seed", type=int, default=0, help="Seed for the orientations.")
     p.add_argument(
         "--output", required=True, help="Oriented VCF to write (plain text)."
@@ -44,12 +55,14 @@ def main(argv=None):
         Command-line arguments. Defaults to `sys.argv[1:]`.
     """
     args = build_parser().parse_args(argv)
+    phase = (
+        confident_phase(args.phased, args.min_phase_confidence) if args.phased else {}
+    )
     rng = random.Random(args.seed)
     flips = {}
     hets = phased = 0
-    opener = gzip.open if args.vcf.endswith(".gz") else open
     with (
-        opener(args.vcf, "rt") as vcf,
+        open_vcf(args.vcf) as vcf,
         open(args.output, "w") as out,
         open_deterministic(args.orientations) as table,
     ):
@@ -59,7 +72,7 @@ def main(argv=None):
                 out.write(line)
                 continue
             fields = line.rstrip("\n").split("\t")
-            genotype, oriented, chromosome_wide = orient(fields, rng, flips)
+            genotype, oriented, chromosome_wide = orient(fields, rng, flips, phase)
             alleles = oriented.split("|")
             if len(alleles) == 2 and alleles[0] != alleles[1]:
                 hets += 1
@@ -71,8 +84,55 @@ def main(argv=None):
             out.write("\t".join(fields) + "\n")
     with open(args.summary, "w") as out:
         fraction = phased / hets if hets else float("nan")
-        out.write("het_sites\tphased_in_vcf\tfraction_phased\n")
+        out.write("het_sites\tphased\tfraction_phased\n")
         out.write(f"{hets}\t{phased}\t{fraction:.4f}\n")
+
+
+def open_vcf(path):
+    """Open a plain or gzipped VCF as text.
+
+    Parameters
+    ----------
+    path : str
+        VCF path. A ``.gz`` suffix means gzip or BGZF.
+
+    Returns
+    -------
+    io.TextIOBase
+        Text stream over the VCF.
+    """
+    return gzip.open(path, "rt") if path.endswith(".gz") else open(path)
+
+
+def confident_phase(path, min_confidence):
+    """Read the confidently phased hets of a single-sample phased VCF.
+
+    Parameters
+    ----------
+    path : str
+        Phased VCF, plain or gzipped.
+    min_confidence : float
+        Smallest ``PP`` kept. Hets without ``PP`` are always kept.
+
+    Returns
+    -------
+    dict
+        Phased genotype, ``"0|1"`` or ``"1|0"``, keyed by
+        ``(chrom, pos, ref, alt)``.
+    """
+    phase = {}
+    with open_vcf(path) as vcf:
+        for line in vcf:
+            if line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            calls = dict(zip(fields[8].split(":"), fields[9].split(":"), strict=False))
+            confidence = calls.get("PP", ".")
+            if calls["GT"] in ("0|1", "1|0") and (
+                confidence == "." or float(confidence) >= min_confidence
+            ):
+                phase[(fields[0], fields[1], fields[3], fields[4])] = calls["GT"]
+    return phase
 
 
 def open_deterministic(path):
@@ -91,7 +151,7 @@ def open_deterministic(path):
     return io.TextIOWrapper(gzip.GzipFile(path, "wb", mtime=0))
 
 
-def orient(fields, rng, flips):
+def orient(fields, rng, flips, phase):
     """Phase the genotype of one VCF record in place.
 
     Parameters
@@ -103,6 +163,8 @@ def orient(fields, rng, flips):
     flips : dict
         Orientation drawn for each ``(chrom, PS)`` phase set so far. Updated
         in place.
+    phase : dict
+        Confident phase from a phased VCF, as `confident_phase` returns.
 
     Returns
     -------
@@ -121,7 +183,11 @@ def orient(fields, rng, flips):
     het = len(alleles) == 2 and alleles[0] != alleles[1]
     phase_set = calls.get("PS", ".")
     chromosome_wide = "|" in genotype and phase_set == "."
-    if het and not chromosome_wide:
+    phased = phase.get((fields[0], fields[1], fields[3], fields[4])) if het else None
+    if phased:
+        alleles = phased.split("|")
+        chromosome_wide = True
+    elif het and not chromosome_wide:
         if "|" in genotype:
             block = (fields[0], phase_set)
             if block not in flips:

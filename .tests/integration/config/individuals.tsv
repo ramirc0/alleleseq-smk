@@ -1,2 +1,2 @@
-individual_id	vcf	vcf_sample	wgs_alignment
-IND1	resources/joint.vcf.gz	IND1	resources/wgs.cram
+individual_id	vcf	vcf_sample	wgs_alignment	phased_vcf
+IND1	resources/joint.vcf.gz	IND1	resources/wgs.cram	resources/phased.vcf.gz

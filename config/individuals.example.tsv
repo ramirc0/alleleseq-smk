@@ -1,2 +1,2 @@
-individual_id	vcf	vcf_sample	wgs_alignment
-IND1	resources/cohort.vcf.gz	IND1	resources/IND1.wgs.cram
+individual_id	vcf	vcf_sample	wgs_alignment	phased_vcf
+IND1	resources/cohort.vcf.gz	IND1	resources/IND1.wgs.cram	resources/cohort.phased.vcf.gz

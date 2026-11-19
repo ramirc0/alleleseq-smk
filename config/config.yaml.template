@@ -11,6 +11,7 @@ reference:
 personal_genome:
   variant_types: [snps, indels]   # [snps] reproduces the user's AlleleSeq2 run
   orientation_seed: 0             # orientation of unphased hets
+  min_phase_confidence: 0.99      # smallest SHAPEIT5 PP trusted from phased_vcf
 
 star:
   sa_index_nbases: 14

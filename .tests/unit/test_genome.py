@@ -5,7 +5,7 @@ import sys
 
 from genes_bed import main as genes_bed_main
 from hetsnv_bed import het_snv
-from orient_hets import orient
+from orient_hets import confident_phase, orient
 from read_depth import main as read_depth_main
 from rename_contigs import rename_chain, rename_fasta
 from wgs_windows import main as wgs_windows_main
@@ -67,22 +67,22 @@ def with_phase_set(chrom, pos, gt, phase_set):
 def test_orient_keeps_phased_and_swaps_unphased_at_random():
     rng = random.Random(0)
     phased = record("chr1", 1, "A", "G", "1|0")
-    assert orient(phased, rng, {}) == ("1|0", "1|0", True)
+    assert orient(phased, rng, {}, {}) == ("1|0", "1|0", True)
     reference = random.Random(0)
     unphased = record("chr1", 1, "A", "G", "0/1")
     expected = "1|0" if reference.random() < 0.5 else "0|1"
-    assert orient(unphased, random.Random(0), {}) == ("0/1", expected, False)
+    assert orient(unphased, random.Random(0), {}, {}) == ("0/1", expected, False)
     assert unphased[9] == f"{expected}:10"
 
 
 def test_orient_leaves_homozygous_unswapped():
     rng = random.Random(1)
-    assert orient(record("chr1", 1, "A", "G", "1/1"), rng, {})[1] == "1|1"
+    assert orient(record("chr1", 1, "A", "G", "1/1"), rng, {}, {})[1] == "1|1"
     assert rng.random() == random.Random(1).random()
 
 
 def test_orient_treats_a_missing_phase_set_as_chromosome_wide():
-    assert orient(with_phase_set("chr1", 1, "1|0", "."), random.Random(0), {}) == (
+    assert orient(with_phase_set("chr1", 1, "1|0", "."), random.Random(0), {}, {}) == (
         "1|0",
         "1|0",
         True,
@@ -95,7 +95,7 @@ def test_orient_flips_each_phase_set_as_one_block():
         with_phase_set("chr1", p, gt, 100) for p, gt in ((100, "0|1"), (150, "1|0"))
     ]
     other = with_phase_set("chr1", 900, "0|1", 900)
-    first, second, third = (orient(r, rng, flips) for r in (*block, other))
+    first, second, third = (orient(r, rng, flips, {}) for r in (*block, other))
     assert first[1] != second[1]
     assert not (first[2] or second[2] or third[2])
     reference = random.Random(3)
@@ -103,6 +103,44 @@ def test_orient_flips_each_phase_set_as_one_block():
     assert first[1] == ("1|0" if flip_block else "0|1")
     assert third[1] == ("1|0" if flip_other else "0|1")
     assert rng.random() == reference.random()
+
+
+def test_confident_phase_keeps_hets_at_or_above_the_cutoff(write):
+    vcf = write(
+        "phased.vcf",
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS\n"
+        "chr1\t10\t.\tA\tG\t.\t.\t.\tGT:PP\t0|1:.\n"
+        "chr1\t20\t.\tA\tG\t.\t.\t.\tGT:PP\t1|0:0.995\n"
+        "chr1\t30\t.\tA\tG\t.\t.\t.\tGT:PP\t1|0:0.99\n"
+        "chr1\t40\t.\tA\tG\t.\t.\t.\tGT:PP\t0|1:0.6\n"
+        "chr1\t50\t.\tA\tG\t.\t.\t.\tGT:PP\t1|1:.\n"
+        "chr1\t60\t.\tA\tG\t.\t.\t.\tGT\t1|0\n",
+    )
+    assert confident_phase(vcf, 0.99) == {
+        ("chr1", "10", "A", "G"): "0|1",
+        ("chr1", "20", "A", "G"): "1|0",
+        ("chr1", "30", "A", "G"): "1|0",
+        ("chr1", "60", "A", "G"): "1|0",
+    }
+
+
+def test_orient_takes_phase_from_the_phased_vcf():
+    phase = {("chr1", "1", "A", "G"): "1|0", ("chr1", "100", "A", "G"): "1|0"}
+    rng = random.Random(2)
+    unphased = record("chr1", 1, "A", "G", "0/1")
+    assert orient(unphased, rng, {}, phase) == ("0/1", "1|0", True)
+    in_block = with_phase_set("chr1", 100, "0|1", 100)
+    assert orient(in_block, rng, {}, phase) == ("0|1", "1|0", True)
+    assert rng.random() == random.Random(2).random()
+
+
+def test_orient_keeps_the_callset_genotype_over_the_phased_vcf():
+    phase = {("chr1", "1", "A", "G"): "0|1", ("chr1", "1", "A", "T"): "1|0"}
+    homozygous = record("chr1", 1, "A", "G", "1/1")
+    assert orient(homozygous, random.Random(0), {}, phase)[1] == "1|1"
+    other_alt = record("chr1", 1, "A", "C", "0|1")
+    assert orient(other_alt, random.Random(0), {}, phase)[1] == "0|1"
 
 
 def test_rename_fasta_drops_contigs_and_descriptions():

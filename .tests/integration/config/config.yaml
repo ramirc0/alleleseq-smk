@@ -11,6 +11,7 @@ reference:
 personal_genome:
   variant_types: [snps, indels]
   orientation_seed: 0
+  min_phase_confidence: 0.99
 
 star:
   sa_index_nbases: 7

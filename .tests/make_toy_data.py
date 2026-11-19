@@ -3,8 +3,10 @@
 The toy genome has all 25 primary contigs (genes sit on chr1 to chr3) and one
 unplaced contig. A two-sample joint VCF carries the individual's het and
 homozygous SNVs plus a few indels. A WGS alignment covers the primary
-contigs, with a doubled stretch on chr2 that the CNV filter must remove. Two
-RNA samples read both haplotypes of each gene. Eight genes, listed in
+contigs, with a doubled stretch on chr2 that the CNV filter must remove. A
+SHAPEIT5-style phased VCF phases the unphased gene hets, two thirds of them
+confidently, and adds two records the callset lacks. Two RNA samples read both
+haplotypes of each gene. Eight genes, listed in
 ``planted.tsv``, express hap1 at 85%.
 
 Run from the repository root inside the rule env::
@@ -272,6 +274,56 @@ def write_vcf(path, variants, genome):
     plain.unlink()
 
 
+def write_phased_vcf(path, variants, genome):
+    """Write a bgzipped phased VCF of the unphased gene hets, with PP.
+
+    Unphased hets are 0|1 in the truth. A third of them carry no PP, as
+    SHAPEIT5's common variants do, a third PP 0.995 and a third PP 0.6 with the
+    wrong order. One record is an imputed het at a site the callset lacks, one
+    a split multiallelic with another ALT. Neither may reach the haplotypes.
+    """
+    unphased = [
+        (contig, pos, ref, alt)
+        for (contig, pos), (ref, alt, gt) in variants.items()
+        if gt == "0/1" and contig in ("chr1", "chr2", "chr3")
+    ]
+    records = []
+    for i, (contig, pos, ref, alt) in enumerate(sorted(unphased)):
+        gt, pp = [("0|1", "."), ("0|1", "0.995"), ("1|0", "0.6")][i % 3]
+        records.append((contig, pos, ref, alt, gt, pp))
+    contig, pos, ref, alt = unphased[0]
+    other = next(b for b in "ACGT" if b not in (ref, alt))
+    records.append((contig, pos, ref, other, "1|0", "."))
+    free = next(p for p in range(1000, 2000) if ("chr3", p) not in variants)
+    ref = genome["chr3"][free - 1]
+    alt = next(b for b in "ACGT" if b != ref)
+    records.append(("chr3", free, ref, alt, "0|1", "."))
+    plain = Path(str(path).removesuffix(".gz"))
+    with open(plain, "w") as out:
+        out.write("##fileformat=VCFv4.2\n")
+        out.writelines(
+            f"##contig=<ID={contig},length={len(seq)}>\n"
+            for contig, seq in genome.items()
+        )
+        out.write(
+            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Phased genotypes">\n'
+        )
+        out.write(
+            '##FORMAT=<ID=PP,Number=1,Type=Float,Description="Phasing confidence">\n'
+        )
+        out.write(
+            f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tOTHER\t{SAMPLE}\n"
+        )
+        out.writelines(
+            f"{c}\t{p}\t.\t{r}\t{a}\t.\t.\t.\tGT:PP\t0|0:.\t{gt}:{pp}\n"
+            for c, p, r, a, gt, pp in sorted(
+                records, key=lambda x: (list(genome).index(x[0]), x[1], x[3])
+            )
+        )
+    subprocess.run(["bcftools", "view", "-Oz", "-o", str(path), str(plain)], check=True)
+    plain.unlink()
+
+
 def main(outdir):
     """Write every toy input under `outdir`."""
     out = Path(outdir)
@@ -287,6 +339,7 @@ def main(outdir):
     write_gtf(genes, out / "toy.gtf")
     variants = make_variants(genome, genes)
     write_vcf(out / "joint.vcf.gz", variants, genome)
+    write_phased_vcf(out / "phased.vcf.gz", variants, genome)
     haps = haplotypes(genome, variants)
     write_wgs(out / "wgs.cram", genome, reference)
     planted_ids = {g["id"] for g in genes[:PLANTED]}

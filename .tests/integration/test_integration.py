@@ -3,6 +3,7 @@
 Run after ``pixi run test``. Skipped when the integration results are absent.
 """
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -57,11 +58,35 @@ def test_named_tables_carry_gene_names():
     assert all(line.split("\t")[1].startswith("TOY") for line in named[1:])
 
 
-def test_phasing_summary():
-    hets, phased, _ = (
+def calls(path):
+    """Return each record's last-column FORMAT values, keyed by site and alleles."""
+    with gzip.open(path, "rt") as vcf:
+        rows = [line.rstrip("\n").split("\t") for line in vcf if line[0] != "#"]
+    return {
+        (r[0], r[1], r[3], r[4]): dict(zip(r[8].split(":"), r[-1].split(":")))
+        for r in rows
+    }
+
+
+def test_hets_take_confident_phase_from_the_phased_vcf():
+    joint = calls(RUN / "resources/joint.vcf.gz")
+    phased = calls(RUN / "resources/phased.vcf.gz")
+    oriented = calls(RESULTS / "refs/IND1/oriented.vcf.gz")
+    confident = {
+        key: call["GT"]
+        for key, call in phased.items()
+        if call["PP"] == "." or float(call["PP"]) >= 0.99
+    }
+    transferred = [k for k in confident if k in joint and joint[k]["GT"] == "0/1"]
+    assert transferred
+    assert all(oriented[k]["GT"] == confident[k] for k in transferred)
+    assert set(oriented) == set(joint)
+    already_phased = sum(call["GT"] in ("0|1", "1|0") for call in joint.values())
+    hets, n_phased, _ = (
         (RESULTS / "refs/IND1/phasing.tsv").read_text().splitlines()[1].split("\t")
     )
-    assert int(hets) > int(phased) > 0
+    assert int(n_phased) == already_phased + len(transferred)
+    assert int(hets) > int(n_phased)
 
 
 @pytest.mark.parametrize("sample", ["RNA1", "RNA2"])

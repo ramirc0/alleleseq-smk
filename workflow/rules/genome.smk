@@ -96,15 +96,57 @@ rule subset_vcf:
         """
 
 
+rule phased_hets:
+    input:
+        vcf=lambda w: INDIVIDUALS[w.individual]["phased_vcf"],
+    output:
+        vcf=f"{REFDIR}/{{individual}}/phased_hets.vcf.gz",
+    params:
+        sample=lambda w: INDIVIDUALS[w.individual]["vcf_sample"],
+    threads: 4
+    log:
+        f"{LOGDIR}/phased_hets/{{individual}}.txt",
+    benchmark:
+        f"{BENCHDIR}/phased_hets/{{individual}}.tsv"
+    software:
+        SOFTWARE_ENV
+    shell:
+        r"""
+        exec &> >(tee {log:q})
+
+        bcftools view \
+            --no-version \
+            --threads {threads} \
+            --samples {params.sample:q} \
+            --output-type u \
+            {input.vcf:q} \
+        | bcftools view \
+            --no-version \
+            --include 'GT="het"' \
+            --output-type z \
+            --output {output.vcf:q}
+        echo "Phased hets: $(bcftools view --no-header {output.vcf:q} | wc -l)"
+
+        sync {output:q}
+        """
+
+
 rule orient_hets:
     input:
         vcf=f"{REFDIR}/{{individual}}/variants.vcf.gz",
+        phased=lambda w: (
+            [f"{REFDIR}/{w.individual}/phased_hets.vcf.gz"]
+            if INDIVIDUALS[w.individual].get("phased_vcf")
+            else []
+        ),
     output:
         vcf=f"{REFDIR}/{{individual}}/oriented.vcf.gz",
         index=f"{REFDIR}/{{individual}}/oriented.vcf.gz.csi",
         orientations=f"{REFDIR}/{{individual}}/orientations.tsv.gz",
         summary=f"{REFDIR}/{{individual}}/phasing.tsv",
     params:
+        phased=lambda w, input: ["--phased", input.phased[0]] if input.phased else [],
+        min_confidence=config["personal_genome"]["min_phase_confidence"],
         seed=config["personal_genome"]["orientation_seed"],
         plain=f"{REFDIR}/{{individual}}/oriented.vcf",
     log:
@@ -119,6 +161,8 @@ rule orient_hets:
 
         python {workflow.basedir:q}/scripts/orient_hets.py \
             --vcf {input.vcf:q} \
+            {params.phased:q} \
+            --min-phase-confidence {params.min_confidence:q} \
             --seed {params.seed:q} \
             --output {params.plain:q} \
             --orientations {output.orientations:q} \
