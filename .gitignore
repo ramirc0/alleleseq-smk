@@ -4,6 +4,7 @@ config/*.tsv
 !config/*.example.tsv
 # copy from config.yaml.template, then edit
 config/config.yaml
+config/*/
 .snakemake
 scratch
 .conda
