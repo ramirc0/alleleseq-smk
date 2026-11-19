@@ -36,6 +36,8 @@ set-threads:
 # From a full-size human run: STAR genomeGenerate took 2.5 h at 32 threads,
 # STAR align peaked at 75.6 GB, and each multi-mapping mpileup took about 70 min.
 set-resources:              # tune from benchmarks/ TSVs after a real run
+  subset_vcf:
+    runtime: 240m
   star_index:
     mem_mb: 200000 * attempt
     runtime: 720m
