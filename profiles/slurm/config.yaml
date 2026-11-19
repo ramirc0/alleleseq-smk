@@ -18,7 +18,9 @@ slurm-efficiency-report-path: logs/efficiency
 slurm-efficiency-threshold: 0.8
 slurm-init-seconds-before-status-checks: 10
 # NODE_FAIL nodes join this list. An --exclude in slurm_extra would override it.
-# slurm-exclude-failed-nodes: node1,node2   # e.g. nodes missing a shared mount
+# z1072 and z1076 cannot read /data, and it hangs on z1024. z1056 and z1081 lost their /data mount on 2026-11-05.
+# z1014 denies access to /home since 2026-11-18.
+slurm-exclude-failed-nodes: z1014,z1024,z1056,z1072,z1076,z1081
 
 # zlurm has no accounts. Every partition defaults to 10 min, so rules set a runtime.
 # Listing partitions lets Slurm start a job wherever its runtime fits.
