@@ -59,10 +59,7 @@ def test_named_tables_carry_gene_names():
 
 def test_phasing_summary():
     hets, phased, _ = (
-        (RESULTS / "refs/IND1/phasing.tsv")
-        .read_text()
-        .splitlines()[1]
-        .split("\t")
+        (RESULTS / "refs/IND1/phasing.tsv").read_text().splitlines()[1].split("\t")
     )
     assert int(hets) > int(phased) > 0
 
