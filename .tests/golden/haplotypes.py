@@ -77,6 +77,8 @@ def golden_orientation(golden, sample, pgenome_dir):
 def write_phased_vcf(vcf, out, hap1_base):
     """Rewrite genotypes so that allele 1 is the golden hap1 allele.
 
+    The phase then spans the chromosome, so any ``PS`` phase set is cleared.
+
     Parameters
     ----------
     vcf : Path
@@ -104,6 +106,8 @@ def write_phased_vcf(vcf, out, hap1_base):
             ):
                 gt.reverse()
             values[keys.index("GT")] = "|".join(gt)
+            if "PS" in keys:
+                values[keys.index("PS")] = "."
             fields[9] = ":".join(values)
             target.write("\t".join(fields) + "\n")
 
