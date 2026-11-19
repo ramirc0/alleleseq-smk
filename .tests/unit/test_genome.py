@@ -49,21 +49,60 @@ def test_het_snv_renames_to_reference_convention():
     assert het_snv(record("MT", 5, "C", "T", "0/1"), 9, REFERENCE)[0] == "chrM"
 
 
+def with_phase_set(chrom, pos, gt, phase_set):
+    return [
+        chrom,
+        str(pos),
+        ".",
+        "A",
+        "G",
+        "50",
+        "PASS",
+        ".",
+        "GT:PS",
+        f"{gt}:{phase_set}",
+    ]
+
+
 def test_orient_keeps_phased_and_swaps_unphased_at_random():
     rng = random.Random(0)
     phased = record("chr1", 1, "A", "G", "1|0")
-    assert orient(phased, rng) == ("1|0", "1|0")
+    assert orient(phased, rng, {}) == ("1|0", "1|0", True)
     reference = random.Random(0)
     unphased = record("chr1", 1, "A", "G", "0/1")
     expected = "1|0" if reference.random() < 0.5 else "0|1"
-    assert orient(unphased, random.Random(0)) == ("0/1", expected)
+    assert orient(unphased, random.Random(0), {}) == ("0/1", expected, False)
     assert unphased[9] == f"{expected}:10"
 
 
 def test_orient_leaves_homozygous_unswapped():
     rng = random.Random(1)
-    assert orient(record("chr1", 1, "A", "G", "1/1"), rng)[1] == "1|1"
+    assert orient(record("chr1", 1, "A", "G", "1/1"), rng, {})[1] == "1|1"
     assert rng.random() == random.Random(1).random()
+
+
+def test_orient_treats_a_missing_phase_set_as_chromosome_wide():
+    assert orient(with_phase_set("chr1", 1, "1|0", "."), random.Random(0), {}) == (
+        "1|0",
+        "1|0",
+        True,
+    )
+
+
+def test_orient_flips_each_phase_set_as_one_block():
+    rng, flips = random.Random(3), {}
+    block = [
+        with_phase_set("chr1", p, gt, 100) for p, gt in ((100, "0|1"), (150, "1|0"))
+    ]
+    other = with_phase_set("chr1", 900, "0|1", 900)
+    first, second, third = (orient(r, rng, flips) for r in (*block, other))
+    assert first[1] != second[1]
+    assert not (first[2] or second[2] or third[2])
+    reference = random.Random(3)
+    flip_block, flip_other = reference.random() < 0.5, reference.random() < 0.5
+    assert first[1] == ("1|0" if flip_block else "0|1")
+    assert third[1] == ("1|0" if flip_other else "0|1")
+    assert rng.random() == reference.random()
 
 
 def test_rename_fasta_drops_contigs_and_descriptions():

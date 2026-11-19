@@ -1,6 +1,8 @@
 """Phase every genotype so that ``bcftools consensus -H 1/-H 2`` can split them.
 
-Phased genotypes keep their order. Each unphased het gets a random
+Phased genotypes without a phase set (``PS``) keep their order. A phase set,
+such as GATK's physical phasing, only fixes phase within its block, so each
+block gets one random orientation. Each unphased het gets a random
 orientation from a seeded generator, as the AlleleSeq paper does for hets the
 parents cannot phase. The orientations and the phased fraction are written
 out, because gene-level aggregation is only meaningful for phased hets.
@@ -43,6 +45,7 @@ def main(argv=None):
     """
     args = build_parser().parse_args(argv)
     rng = random.Random(args.seed)
+    flips = {}
     hets = phased = 0
     opener = gzip.open if args.vcf.endswith(".gz") else open
     with (
@@ -56,11 +59,11 @@ def main(argv=None):
                 out.write(line)
                 continue
             fields = line.rstrip("\n").split("\t")
-            genotype, oriented = orient(fields, rng)
+            genotype, oriented, chromosome_wide = orient(fields, rng, flips)
             alleles = oriented.split("|")
             if len(alleles) == 2 and alleles[0] != alleles[1]:
                 hets += 1
-                if "|" in genotype:
+                if chromosome_wide:
                     phased += 1
                 else:
                     row = [*fields[:2], fields[3], fields[4], genotype, oriented]
@@ -88,7 +91,7 @@ def open_deterministic(path):
     return io.TextIOWrapper(gzip.GzipFile(path, "wb", mtime=0))
 
 
-def orient(fields, rng):
+def orient(fields, rng, flips):
     """Phase the genotype of one VCF record in place.
 
     Parameters
@@ -96,7 +99,10 @@ def orient(fields, rng):
     fields : list of str
         VCF record columns. The sample is the tenth column.
     rng : random.Random
-        Source of orientations for unphased hets.
+        Source of orientations for unphased hets and phase sets.
+    flips : dict
+        Orientation drawn for each ``(chrom, PS)`` phase set so far. Updated
+        in place.
 
     Returns
     -------
@@ -104,19 +110,31 @@ def orient(fields, rng):
         The genotype as read.
     oriented : str
         The phased genotype written back into `fields`.
+    chromosome_wide : bool
+        Whether the genotype was phased along the whole chromosome.
     """
     keys = fields[8].split(":")
     values = fields[9].split(":")
-    index = keys.index("GT")
-    genotype = values[index]
+    calls = dict(zip(keys, values, strict=False))
+    genotype = calls["GT"]
     alleles = genotype.replace("/", "|").split("|")
-    unphased_het = "/" in genotype and len(alleles) == 2 and alleles[0] != alleles[1]
-    if unphased_het and rng.random() < 0.5:
-        alleles.reverse()
+    het = len(alleles) == 2 and alleles[0] != alleles[1]
+    phase_set = calls.get("PS", ".")
+    chromosome_wide = "|" in genotype and phase_set == "."
+    if het and not chromosome_wide:
+        if "|" in genotype:
+            block = (fields[0], phase_set)
+            if block not in flips:
+                flips[block] = rng.random() < 0.5
+            flip = flips[block]
+        else:
+            flip = rng.random() < 0.5
+        if flip:
+            alleles.reverse()
     oriented = "|".join(alleles)
-    values[index] = oriented
+    values[keys.index("GT")] = oriented
     fields[9] = ":".join(values)
-    return genotype, oriented
+    return genotype, oriented, chromosome_wide
 
 
 if __name__ == "__main__":
