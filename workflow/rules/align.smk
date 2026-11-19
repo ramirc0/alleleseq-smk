@@ -164,8 +164,9 @@ rule pileup:
     input:
         bam=f"{OUTDIR}/{{sample}}/{{sample}}.hets.{{kind}}.bam",
         bai=f"{OUTDIR}/{{sample}}/{{sample}}.hets.{{kind}}.bam.bai",
-        fasta=lambda w: f"{pgenome(SAMPLES[w.sample]['individual_id'])}/hap{w.hap}.fa",
-        fai=lambda w: f"{pgenome(SAMPLES[w.sample]['individual_id'])}/hap{w.hap}.fa.fai",
+        fasta=lambda w: f"{pgenome(SAMPLES[w.sample]['individual_id'])}/hap{w.hap}.fa.gz",
+        fai=lambda w: f"{pgenome(SAMPLES[w.sample]['individual_id'])}/hap{w.hap}.fa.gz.fai",
+        gzi=lambda w: f"{pgenome(SAMPLES[w.sample]['individual_id'])}/hap{w.hap}.fa.gz.gzi",
         positions=lambda w: f"{pgenome(SAMPLES[w.sample]['individual_id'])}/hets.hap{w.hap}.bed",
     output:
         f"{OUTDIR}/{{sample}}/{{sample}}.hap{{hap}}.{{kind}}.mpileup",

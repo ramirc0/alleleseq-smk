@@ -32,7 +32,7 @@ docs/                    workflow diagrams: workflow.gv (every rule), workflow-c
    - Orient the remaining hets with a seeded random draw, one per `PS` phase set and one per unphased het.
    - Build both haplotypes and their chains with `bcftools consensus`. This replaces vcf2diploid.
    - Lift het SNVs and the GENCODE annotation onto each haplotype.
-   - Build a STAR index of both haplotypes plus the unplaced contigs.
+   - Build a STAR index of both haplotypes plus the unplaced contigs. It takes about 54 GB, so it is deleted once the individual's samples are aligned. The haplotypes stay as bgzipped FASTA.
    - Compute each het's WGS read depth ratio in a 2 kb window.
 2. Per sample: align with STAR in two-pass mode, remove duplicates with Picard, split the reads over hets into unique and multi-mapping, and pile them up on each haplotype.
 3. Per unit (a sample, or a `group` of samples pooled):
@@ -107,7 +107,7 @@ pixi run lint
 
 - Gene-level calls need phased hets. Each individual's `phasing.tsv` reports the phased fraction. Unphased hets are oriented at random, so hap1 and hap2 sums across a gene mix both haplotypes. Phase the cohort first, for example with SHAPEIT5, and set `phased_vcf`.
 - `variant_types: [snps]` writes only SNVs into the haplotypes. `[snps, indels]` also writes indels, which reduces mapping bias near them.
-- Personal genomes belong to their run. Use a new `run_id` for a new VCF or `variant_types`, so earlier runs keep their STAR indexes.
+- Personal genomes belong to their run. Use a new `run_id` for a new VCF or `variant_types`, so earlier runs keep their genomes. Aligning a new sample to an existing individual rebuilds its STAR index.
 - The profiles ignore software-environment changes when deciding what to rerun, so an env edit does not rebuild every STAR index. After a tool upgrade, use `--forcerun <rule>`.
 - STAR refuses to start when its temp directory exists. The `align` rule removes it first.
 

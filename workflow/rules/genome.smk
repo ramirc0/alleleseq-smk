@@ -182,8 +182,9 @@ rule haplotype:
         vcf=f"{REFDIR}/{{individual}}/oriented.vcf.gz",
         index=f"{REFDIR}/{{individual}}/oriented.vcf.gz.csi",
     output:
-        fasta=f"{REFDIR}/{{individual}}/hap{{hap}}.fa",
-        fai=f"{REFDIR}/{{individual}}/hap{{hap}}.fa.fai",
+        fasta=f"{REFDIR}/{{individual}}/hap{{hap}}.fa.gz",
+        fai=f"{REFDIR}/{{individual}}/hap{{hap}}.fa.gz.fai",
+        gzi=f"{REFDIR}/{{individual}}/hap{{hap}}.fa.gz.gzi",
         chain=f"{REFDIR}/{{individual}}/hap{{hap}}.chain",
     params:
         sample=lambda w: INDIVIDUALS[w.individual]["vcf_sample"],
@@ -211,7 +212,7 @@ rule haplotype:
             --format fasta \
             --suffix _hap{wildcards.hap} \
             --drop {params.drop:q} \
-            > {output.fasta:q}
+        | bgzip > {output.fasta:q}
         python {workflow.basedir:q}/scripts/rename_contigs.py \
             --format chain \
             --suffix _hap{wildcards.hap} \
@@ -292,11 +293,12 @@ rule diploid_annotation:
 
 rule star_index:
     input:
-        hap1=f"{REFDIR}/{{individual}}/hap1.fa",
-        hap2=f"{REFDIR}/{{individual}}/hap2.fa",
+        hap1=f"{REFDIR}/{{individual}}/hap1.fa.gz",
+        hap2=f"{REFDIR}/{{individual}}/hap2.fa.gz",
         extra=f"{REFDIR}/genome/extra_contigs.fa",
     output:
-        directory(f"{REFDIR}/{{individual}}/star_index"),
+        # 54 GB per individual. Snakemake deletes it once the individual's samples are aligned.
+        temp(directory(f"{REFDIR}/{{individual}}/star_index")),
     params:
         ram=config["star"]["genome_generate_ram"],
         sa_index_nbases=config["star"]["sa_index_nbases"],
@@ -311,10 +313,13 @@ rule star_index:
         r"""
         exec &> >(tee {log:q})
 
-        fastas=({input.hap1:q} {input.hap2:q})
+        # STAR reads only plain FASTA.
+        mkdir -p {output:q}/fasta
+        bgzip --decompress --stdout {input.hap1:q} > {output:q}/fasta/hap1.fa
+        bgzip --decompress --stdout {input.hap2:q} > {output:q}/fasta/hap2.fa
+        fastas=({output:q}/fasta/hap1.fa {output:q}/fasta/hap2.fa)
         # Unplaced and decoy contigs soak up reads that would otherwise mismap.
         if [ -s {input.extra:q} ]; then fastas+=({input.extra:q}); fi
-        mkdir -p {output:q}
         STAR \
             --runMode genomeGenerate \
             --runThreadN {threads} \
@@ -323,6 +328,7 @@ rule star_index:
             --genomeDir {output:q} \
             --genomeFastaFiles "${{fastas[@]}}" \
             --outFileNamePrefix {output:q}/
+        rm -r {output:q}/fasta
 
         sync {output:q}
         """

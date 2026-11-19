@@ -95,3 +95,13 @@ def test_star_temp_dir_sits_beside_its_outputs(sample):
     # /tmp is mounted noexec on zlurm.
     log = (RESULTS / f"{sample}/{sample}.Log.out").read_text()
     assert "--outTmpDir" not in log
+
+
+def test_personal_genome_keeps_bgzipped_haplotypes_and_drops_the_index():
+    refs = RESULTS / "refs/IND1"
+    assert not (refs / "star_index").exists()
+    for hap in (1, 2):
+        fasta = refs / f"hap{hap}.fa.gz"
+        assert fasta.read_bytes()[:4] == b"\x1f\x8b\x08\x04"
+        assert (refs / f"hap{hap}.fa.gz.fai").exists()
+        assert (refs / f"hap{hap}.fa.gz.gzi").exists()
